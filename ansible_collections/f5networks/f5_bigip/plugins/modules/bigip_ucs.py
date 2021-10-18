@@ -158,8 +158,7 @@ import time
 from datetime import datetime
 
 from ansible.module_utils.basic import AnsibleModule
-from ansible.module_utils.connection import Connection, ConnectionError
-from ansible.module_utils.six.moves.urllib.error import HTTPError
+from ansible.module_utils.connection import Connection
 
 from ..module_utils.client import (
     F5Client, send_teem
@@ -367,10 +366,6 @@ class ModuleManager(object):
                 response = self.client.get('/mgmt/tm/util/available')
                 if response['code'] == 200:
                     break
-            except ConnectionError:
-                pass
-            except HTTPError:
-                pass
             except Exception:
                 raise
 
@@ -470,13 +465,13 @@ class ModuleManager(object):
         params = dict(command="run", utilCmdArgs='-c "{0}"'.format(self.want.install_command))
         uri = "/mgmt/tm/util/bash"
 
-        try:
-            response = self.client.post(uri, data=params)
-            if response['code'] in [400, 403]:
-                raise F5ModuleError(response['contents'])
-        except ConnectionError:
-            pass
-        except HTTPError:
+        response = self.client.post(uri, data=params)
+
+        if response['code'] in [400, 403]:
+            raise F5ModuleError(response['contents'])
+
+        if response['code'] in [401, 404, 503]:
+            # services might start to restart immediately so its better to catch the error and move on
             pass
         self.wait_for_rest_api_restart()
         self.wait_for_configuration_reload()

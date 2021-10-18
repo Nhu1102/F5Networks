@@ -315,7 +315,7 @@ class ModuleManager(object):
         )
 
     def resource_exists(self):
-        if self.want.tenant != 'all':
+        if self.want.tenant:
             uri = "/mgmt/shared/appsvcs/declare/{0}".format(self.want.tenant)
         else:
             uri = "/mgmt/shared/appsvcs/declare"

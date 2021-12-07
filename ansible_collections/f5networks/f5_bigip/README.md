@@ -10,45 +10,18 @@ uploading security policies, uploading crts/keys, gathering info, etc.
 ##Python Version
 This collection is supported on Python 3.6 and above.
 
-##Collections Daily Build
+## Important Information
+This branch is an experimental branch of f5_bigip collection, which is meant as a preview. 
+It is focused on incubating Ansible solutions for SSL Orchestrator feature of BIG-IP.
+When finished the contents of this branch will be incorpoated into f5_bigip collection.
+Until that time breaking changes might be introduced into this branch and usage of this branch is considered an agreement 
+to below disclaimer.
 
+## Disclaimer
 
-We offer a daily build of our most recent collection [dailybuild]. Please use this Collection to test the most
-recent Ansible module updates between releases. You can also install development build directly from GitHub see [repoinstall]
+Limitation on Liability Provision of any Software under this Agreement is experimental and shall not create any obligation for F5 Networks to continue to develop, productize, support, repair, offer for sale or in any other way continue to provide or develop Software either to Licensee or to any other party
 
-###Install from GitHub
-```bash
-
-ansible-galaxy collection install git+https://github.com/F5Networks/f5-ansible-bigip.git#ansible_collections/f5networks/f5_bigip
-```
-
-###Install from daily build file
-```bash
-
-    ansible-galaxy collection install <collection name> -p ./collections
-    e.g.
-    ansible-galaxy collection install f5networks-f5_bigip-devel.tar.gz -p ./collections
-```
-
-> **_NOTE:_**  `-p` is the location in which the collection will be installed. This location should be defined in the path for
-    ansible to search for collections. An example of this would be adding ``collections_paths = ./collections``
-    to your **ansible.cfg**
-    
-##Tips
-
-* You can leverage both this collection (f5_bigip) and the previous imperative collection (f5_modules) at the same time.
-* If you are migrating from the imperative collection, you can leave the provider variables and reference them from 
-  the new httpapi connection variables:
-
-```yaml
-   ansible_host: "{{ provider.server }}"
-   ansible_user: "{{ provider.user }}"
-   ansible_httpapi_password: "{{ provider.password }}"
-   ansible_httpapi_port: "{{ provider.server_port }}"
-   ansible_network_os: f5networks.f5_bigip.bigip
-   ansible_httpapi_use_ssl: yes
-   ansible_httpapi_validate_certs: "{{ provider.validate_certs }}"
-```
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ##Bugs, Issues
    

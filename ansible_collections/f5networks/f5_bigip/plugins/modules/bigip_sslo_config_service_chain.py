@@ -1,17 +1,12 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-# 
-# Copyright: (c) 2021, kevin-dot-g-dot-stewart-at-gmail-dot-com
+#
+# Copyright: (c) 2021, F5 Networks Inc.
 # GNU General Public License v3.0 (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
-# Version: 1.0.1
-
-#### Updates:
-#### 1.0.1 - added 9.0 support (same as 8.3 so just changed max version)
-#          - updated version and previousVersion keys to match target SSLO version
-
 
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
+
 
 DOCUMENTATION = r'''
 ---
@@ -23,96 +18,107 @@ version_added: "1.0.0"
 options:
   name:
     description:
-      - Specifies the name of the service chain. Configuration auto-prepends "ssloSC_" to service. Service name should be less than 14 characters and not contain dashes "-". Note that service chain creation/management does not verify that the defined services exist.
+      - Specifies the name of the service chain.
+      - Configuration auto-prepends "ssloSC_" to service if not present.
+      - Service name should be less than 14 characters and not contain dashes "-".
     type: str
     required: True
   services:
     description:
-      - Specifies the client-side SSL settings
-    required: True
+      - Specifies the client-side SSL settings.
+      - Parameter is required when C(state) is C(present)
     type: list
     elements: dict
     suboptions:
-      name:
+      service_name:
         description: 
-            - Defines the name of the service.
+          - Defines the name of the service.
         type: str
-        required: True
-      serviceType:
+      type:
         description: 
-            - Defines the type of service.
-        type: str
-        choices:
-            - L2
-            - L3
-            - http-proxy
-            - icap
-            - tap
-        required: True
-      ipFamily: 
-        description: 
-            - Defines the IP family for this service.
+          - Defines the type of service.
         type: str
         choices:
-            - ipv4
-            - ipv6
-        default: ipv4
-  
-  mode:
+          - L2
+          - L3
+          - http-proxy
+          - icap
+          - tap
+      ip_family: 
+        description: 
+          - Defines the IP family for this service.
+          - If missing, C(ipv4) value is assumed.
+        type: str
+        choices:
+          - ipv4
+          - ipv6
+  dump_json:
     description:
-      - Defines how this task is handled. With the default setting of 'update', the module performs the tasks required to update the target resource. With the 'output' setting, the resulting JSON object blocks are returned without updating the target resource. This option is useful for debugging, and when subordinate objects (ex. SSL, services, service chains, policy, resolver) are created in the same playbook, and their respectice output JSON referenced in a single Topology create task.
-    type: str
-    choices:
-      - update
-      - output
-    default: update
-    
+      - Sets the module to output a JSON blob for further consumption.
+      - When C(yes) does not make any changes on device and always returns C(changed=False).
+      - The output provided is idempotent in nature, meaning if there are no changes to be made during
+        C(MODIFY) on an existing service no json output will be generated.
+    type: bool
+    default: no
+  timeout:
+    description:
+      - The amount of time in seconds to wait for the C(CREATE), C(MODIFY) or C(DELETE) task to complete.
+      - The accepted value range is between C(10) and C(1800) seconds.
+    type: int
+    default: 300
   state:
     description:
-        - Specifies the present/absent state required.
+      - When C(state) is C(present), ensures the object is created or modified.
+      - When C(state) is C(absent), ensures that the service is removed.
     type: str
-    choices: 
-        - absent
-        - present
+    choices:
+      - present
+      - absent
     default: present
-
-extends_documentation_fragment: f5networks.f5_modules.f5
+notes:
+  - Service chain creation/management does not verify that the defined services exist.
 author:
-  - Kevin Stewart (kevin-dot-g-dot-stewart-at-gmail-dot-com)
+  - Wojciech Wypior (@wojtek0806)
+  - Kevin Stewart (@kevingstewart)
 '''
 
 EXAMPLES = r'''
-- name: Create SSLO Service Chain
-  hosts: localhost
-  gather_facts: False
-  connection: local
-
+- hosts: all
   collections:
-    - kevingstewart.f5_sslo_ansible
+    - f5networks.f5_bigip
+  connection: httpapi
 
-  vars: 
-    provider:
-      server: 172.16.1.77
-      user: admin
-      password: admin
-      validate_certs: no
-      server_port: 443
-
+  vars:
+    ansible_host: "lb.mydomain.com"
+    ansible_user: "admin"
+    ansible_httpapi_password: "secret"
+    ansible_network_os: f5networks.f5_bigip.bigip
+    ansible_httpapi_use_ssl: yes
+  
   tasks:
-    - name: SSLO service chain
+    - name: Create SSLO service chain
       bigip_sslo_config_service_chain:
-        provider: "{{ provider }}"
-        name: "demo_chain_1"
-        
+        name: "demo_chain_1" 
         services:
-          - name: "icap3"
-            serviceType: "icap"
-            ipFamily: "ipv4"
+          - service_name: "icap1"
+            type: "icap"
+            ip_family: "ipv4"
+          - service_name: "layer3a"
+            type: "L3"
+            ip_family: "ipv4"
+            
+    - name: Modify SSLO service chain
+      bigip_sslo_config_service_chain:
+        name: "demo_chain_1" 
+        services:
+          - service_name: "icap1"
+            type: "icap"
+            ip_family: "ipv4"
 
-          - name: "layer3a"
-            serviceType: "L3"
-            ipFamily: "ipv4"
-      delegate_to: localhost
+    - name: Delete SSLO service chain
+      bigip_sslo_config_service_chain:
+        name: "demo_chain_1" 
+        state: absent
 '''
 
 RETURN = r'''
@@ -125,176 +131,387 @@ services:
   description: list of services to include in the service chain
   type: complex
   contains:
-    name:
-       description: defines the name of the service.
+    service_name:
+       description: Tthe name of the service.
        type: str
        sample: icap3
-    ipFamily:
-       description: defines the IP family for the specified service. Options are 'ipv4', or 'ipv6'.
+    ip_family:
+       description: The IP family for the specified service. Options are 'ipv4', or 'ipv6'.
        type: str
        sample: ipv4
-    serviceType:
-       description: defines the service type for the specified service. Options are 'L2', 'L3', 'http-proxy', 'icap', or 'tap'.
+    type:
+       description: The service type for the specified service.
        type: str
        sample: icap
-
-mode:
-  description: describes the action to take on the task.
-  type: str
-  sample: update
-  
-state:
-  description:
-    - Changed state.
-  type: str
-  sample: present
 '''
 
 import time
-import re
+from distutils.version import LooseVersion
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.connection import Connection
 
-from ..module_utils.client import F5Client
-
-from ..module_utils.common import (
-    F5ModuleError, AnsibleF5Parameters,
+from ..module_utils.client import (
+    F5Client, sslo_version
 )
-
-global print_output
-global json_template
-global obj_attempts
-global min_version
-global max_version
-
-print_output = []
-
-## define object creation attempts count (with 1 seconds pause between each attempt)
-obj_attempts = 20
-
-## define minimum supported tmos version - min(SSLO 5.x)
-min_version = 5.0
-
-## define maximum supported tmos version - max(SSLO 8.x)
-max_version = 9.0
-
-json_template = {
-   "name":"f5-ssl-orchestrator-gc",
-   "inputProperties":[
-      {
-         "id":"f5-ssl-orchestrator-operation-context",
-         "type":"JSON",
-         "value":{
-            "operationType":"TEMPLATE_OPERATION",
-            "deploymentType":"SERVICE_CHAIN",
-            "deploymentName":"TEMPLATE_NAME",
-            "deploymentReference":"",
-            "partition":"Common",
-            "strictness":False
-         }
-      },
-      {
-         "id":"f5-ssl-orchestrator-service-chain",
-         "type":"JSON",
-         "value": {
-               "name": "TEMPLATE_NAME",
-               "description": "",
-               "orderedServiceList": [],
-               "partition": "Common",
-               "version": "7.2",
-               "strictness": False,
-               "previousVersion": "7.2"
-           }
-      },
-      {
-         "id":"f5-ssl-orchestrator-policy",
-         "type":"JSON",
-         "value":[]
-      }
-   ],
-   "configurationProcessorReference":{
-      "link":"https://localhost/mgmt/shared/iapp/processors/f5-iappslx-ssl-orchestrator-gc"
-   },
-   "configProcessorTimeoutSeconds": 120,
-   "statsProcessorTimeoutSeconds": 60,
-   "configProcessorAffinity": {
-        "processorPolicy": "LOCAL",
-        "affinityProcessorReference": {
-            "link": "https://localhost/mgmt/shared/iapp/affinity/local"
-        }
-   },
-   "state":"BINDING",
-   "presentationHtmlReference":{
-      "link":"https://localhost/iapps/f5-iappslx-ssl-orchestrator/sgc/sgcIndex.html"
-   },
-   "operation":"CREATE"
-}
+from ..module_utils.common import (
+    F5ModuleError, AnsibleF5Parameters, process_json
+)
+from ..module_utils.constants import (
+    min_sslo_version, max_sslo_version
+)
+from ..module_utils.compare import compare_complex_list
+from ..module_utils.sslo_templates.sslo_service_chain import (
+    create_modify, delete
+)
 
 
 class Parameters(AnsibleF5Parameters):
-    api_map = {}
-    updatables = []
+    api_map = {
+        'orderedServiceList': 'services'
+    }
+
     api_attributes = []
-    returnables = []
+
+    returnables = [
+        'services'
+    ]
+
+    updatables = [
+        'services'
+    ]
+
 
 class ApiParameters(Parameters):
     pass
 
-class ModuleParameters(Parameters):
-    global print_output
 
+class ModuleParameters(Parameters):
     @property
     def name(self):
         name = self._values['name']
-        name = "ssloSC_" + name
+        if not name.startswith('ssloSC_'):
+            name = "ssloSC_" + name
         return name
 
     @property
     def services(self):
-        try:
-            services = self._values['services']
-            if services == None:
-                return None
-            return services
-        except:
+        if self._values['services'] is None:
             return None
-    
+        result = list()
+        for service in self._values['services']:
+            element=dict()
+            if service['service_name'].startswith("ssloS_"):
+                element['name'] = service['service_name']
+            else:
+                element['name'] = "ssloS_" + service['service_name']
+            if 'ip_family' not in service:
+                element['ipFamily'] = 'ipv4'
+            else:
+                element['ipFamily'] = service['ip_family']
+            element['serviceType'] = service['type']
+            result.append(element)
+        return result
+
     @property
-    def mode(self):
-        mode = self._values['mode']
-        return mode
+    def timeout(self):
+        divisor = 10
+        timeout = self._values['timeout']
+        if timeout < 10 or timeout > 1800:
+            raise F5ModuleError(
+                "Timeout value must be between 10 and 1800 seconds."
+            )
+        if timeout > 99:
+            divisor = 100
+        delay = timeout / divisor
+
+        return int(delay), divisor
+
+
+class Changes(Parameters):
+    def to_return(self):
+        result = {}
+        try:
+            for returnable in self.returnables:
+                result[returnable] = getattr(self, returnable)
+            result = self._filter_params(result)
+        except Exception:
+            raise
+        return result
+
+
+class UsableChanges(Changes):
+    pass
+
+
+class ReportableChanges(Changes):
+    pass
+
+
+class Difference(object):
+    def __init__(self, want, have=None):
+        self.want = want
+        self.have = have
+
+    def compare(self, param):
+        try:
+            result = getattr(self, param)
+            return result
+        except AttributeError:
+            return self.__default(param)
+
+    def __default(self, param):
+        attr1 = getattr(self.want, param)
+        try:
+            attr2 = getattr(self.have, param)
+            if attr1 != attr2:
+                return attr1
+        except AttributeError:
+            return attr1
+
+    @property
+    def services(self):
+        result = compare_complex_list(self.want.services, self.have.services)
+        return result
 
 
 class ModuleManager(object):
-    global print_output
-    global json_template
-    global obj_attempts
-    global min_version
-    global max_version
-
     def __init__(self, *args, **kwargs):
-        self.module = kwargs.pop('module', None)
+        self.module = kwargs.get('module', None)
         self.connection = kwargs.get('connection', None)
         self.client = F5Client(module=self.module, client=self.connection)
         self.want = ModuleParameters(params=self.module.params)
+        self.changes = UsableChanges()
+        self.have = ApiParameters()
 
-    def getSsloVersion(self):
-        # use this method to get the SSLO version (first two digits (x.y))
-        uri = "/mgmt/shared/iapp/installed-packages"
+        # define a set of common instance variables used during module execution
+        self.block_id = None
+        self.operation = None
+        self.version = None
+        self.json_dump = None
 
-        response = self.client.get(uri)
-        if response['code'] in [200, 201, 202]:
-            for x in response['contents']["items"]:
-                if x["appName"] == "f5-iappslx-ssl-orchestrator":
-                    tmpversion = x["release"].split(".")
-                    version = tmpversion[0] + "." + tmpversion[1]
-                    return float(version)
-        raise F5ModuleError("SSL Orchestrator package does not appear to be installed. Aborting.")
+    def _set_changed_options(self):
+        changed = {}
+        for key in Parameters.returnables:
+            if getattr(self.want, key) is not None:
+                changed[key] = getattr(self.want, key)
+        if changed:
+            self.changes = UsableChanges(params=changed)
 
-    def deleteOperation(self, id):
-        # use this method to delete an operation that failed
-        uri = "/mgmt/shared/iapp/blocks/{0}".format(id)
+    def _update_changed_options(self):
+        diff = Difference(self.want, self.have)
+        updatables = Parameters.updatables
+        changed = dict()
+        for k in updatables:
+            change = diff.compare(k)
+            if change is None:
+                continue
+            else:
+                if isinstance(change, dict):
+                    changed.update(change)
+                else:
+                    changed[k] = change
+        if changed:
+            self.changes = UsableChanges(params=changed)
+            return True
+        return False
+
+    def _announce_deprecations(self, result):
+        warnings = result.pop('__warnings', [])
+        for warning in warnings:
+            self.client.module.deprecate(
+                msg=warning['msg'],
+                version=warning['version']
+            )
+
+    def exec_module(self):
+        changed = False
+        result = dict()
+        state = self.want.state
+
+        self.check_sslo_version()
+
+        if state == 'present':
+            changed = self.present()
+        elif state == 'absent':
+            changed = self.absent()
+
+        reportable = ReportableChanges(params=self.changes.to_return())
+        changes = reportable.to_return()
+        result.update(**changes)
+        result.update(dict(changed=changed))
+        if self.json_dump:
+            result.update(dict(json=self.json_dump))
+        self._announce_deprecations(result)
+        return result
+
+    def check_sslo_version(self):
+        self.version = sslo_version(self.client)
+        if LooseVersion(self.version) > LooseVersion(max_sslo_version) or \
+                LooseVersion(self.version) < LooseVersion(min_sslo_version):
+            raise F5ModuleError(
+                f"Unsupported SSL Orchestrator version, "
+                f"requires a version between {min_sslo_version} and {max_sslo_version}"
+            )
+        return True
+
+    def present(self):
+        if self.exists():
+            return self.update()
+        else:
+            return self.create()
+
+    def absent(self):
+        if self.exists():
+            return self.remove()
+        return False
+
+    def should_update(self):
+        result = self._update_changed_options()
+        if result:
+            return True
+        return False
+
+    def update(self):
+        self.have = self.read_current_from_device()
+        if not self.should_update():
+            return False
+        if self.module.check_mode:
+            return True
+        self.operation = 'MODIFY'
+        task_id, output = self.update_on_device()
+        if task_id:
+            self.wait_for_task(task_id)
+        if output:
+            self.json_dump = output
+            return False
+        return True
+
+    def remove(self):
+        if self.module.check_mode:
+            return True
+        self.operation = 'DELETE'
+        task_id, output = self.remove_from_device()
+        if task_id:
+            self.wait_for_task(task_id)
+        if output:
+            self.json_dump = output
+            return False
+        return True
+
+    def create(self):
+        self._set_changed_options()
+        if self.module.check_mode:
+            return True
+        self.operation = 'CREATE'
+        task_id, output = self.create_on_device()
+        if task_id:
+            self.wait_for_task(task_id)
+        if output:
+            self.json_dump = output
+            return False
+        return True
+
+    def exists(self):
+        uri = "/mgmt/shared/iapp/blocks/"
+        query = f"?$filter=name+eq+'{self.want.name}'"
+        response = self.client.get(uri + query)
+
+        if response['code'] == 404:
+            return False
+
+        if response['code'] not in [200, 201, 202]:
+            raise F5ModuleError(response['contents'])
+
+        if response['contents'].get('items', None):
+            if response['contents']['items'][0]['name'] == self.want.name:
+                self.block_id = response['contents']['items'][0]['id']
+                return True
+        return False
+
+    def add_json_metadata(self, payload=None):
+        if not payload:
+            payload = dict()
+        payload['name'] = f"sslo_obj_SERVICE_CHAIN_{self.operation}_{self.want.name}"
+        payload['deployment_name'] = self.want.name
+        payload['operation'] = self.operation
+        payload['sslo_version'] = float(self.version)
+        if self.operation == 'MODIFY' or self.operation == 'DELETE':
+            payload['dep_ref'] = f"https://localhost/mgmt/shared/iapp/blocks/{self.block_id}"
+            payload['block_id'] = self.block_id
+        return payload
+
+    def create_on_device(self):
+        payload = self.changes.to_return()
+        data = self.add_json_metadata(payload)
+
+        output = process_json(data, create_modify)
+
+        if self.want.dump_json:
+            return None, output
+
+        uri = "/mgmt/shared/iapp/blocks/"
+        response = self.client.post(uri, data=output)
+
+        if response['code'] not in [200, 201, 202]:
+            raise F5ModuleError(response['contents'])
+
+        task_id = str(response['contents']['id'])
+        return task_id, None
+
+    def update_on_device(self):
+        payload = self.changes.to_return()
+        data = self.add_json_metadata(payload)
+
+        output = process_json(data, create_modify)
+
+        if self.want.dump_json:
+            return None, output
+
+        uri = "/mgmt/shared/iapp/blocks/"
+        response = self.client.post(uri, data=output)
+
+        if response['code'] not in [200, 201, 202]:
+            raise F5ModuleError(response['contents'])
+
+        task_id = str(response['contents']['id'])
+        return task_id, None
+
+    def remove_from_device(self):
+        data = self.add_json_metadata()
+
+        output = process_json(data, delete)
+
+        if self.want.dump_json:
+            return None, output
+
+        uri = "/mgmt/shared/iapp/blocks/"
+        response = self.client.post(uri, data=output)
+
+        if response['code'] not in [200, 201, 202]:
+            raise F5ModuleError(response['contents'])
+
+        task_id = str(response['contents']['id'])
+        return task_id, None
+
+    def read_current_from_device(self):
+        uri = "/mgmt/shared/iapp/blocks/"
+        query = f"?$filter=name+eq+'{self.want.name}'"
+        response = self.client.get(uri + query)
+
+        if response['code'] not in [200, 201, 202]:
+            raise F5ModuleError(response['contents'])
+
+        if response['contents'].get('items', None) and response['contents']['items'][0]['name'] == self.want.name:
+            returned_json = response['contents']['items'][0]['inputProperties'][0]['value']
+            self.block_id = response['contents']['items'][0]['id']
+            return ApiParameters(params=returned_json)
+        raise F5ModuleError(response['contents'])
+
+    def delete_failed_operation_on_device(self, task):
+        # use this method to delete the operation that failed
+        # if there are any http errors we ignore them
+        uri = "/mgmt/shared/iapp/blocks/{0}".format(task)
         response = self.client.delete(uri)
 
         if response['code'] in [200, 201, 202]:
@@ -302,287 +519,32 @@ class ModuleManager(object):
         else:
             return False
 
-    def update_json(self, operation):
-
-        ## use this to method to create and return a modified copy of the JSON template
-        self.config = json_template
-
-        ## get base name
-        self.local_name = re.sub('ssloSC_', '', self.want.name)
-
-        ## perform some input validation
-        ## input validation: there must be at least one service devices under services key
-        #if self.want.services == None:
-        #    raise F5ModuleError("The 'services' key must contain at least one service definition.")
-
-
-        ## process general json settings for all operations
-        self.config["inputProperties"][0]["value"]["deploymentName"] = self.want.name
-        self.config["inputProperties"][0]["value"]["operationType"] = operation
-        self.config["inputProperties"][1]["value"]["name"] = self.want.name
-
-
-        ## =================================
-        ## 1.0.1 general update: modify version and previousVersion values to match target BIG-IP version
-        ## =================================
-        self.config["inputProperties"][0]["value"]["version"] = self.ssloVersion
-        self.config["inputProperties"][1]["value"]["version"] = self.ssloVersion
-        self.config["inputProperties"][1]["value"]["previousVersion"] = self.ssloVersion
-
-
-        ## process service chains
-        if self.want.services != None:
-            for service in self.want.services:
-                ## input validation: service must contain 'name', 'ipFamily', and 'serviceType' keys
-                if "name" not in service:
-                    raise F5ModuleError("Each service must contain a 'name' key.")
-                
-                ## input validation: ipFamily key must either be 'ipv4' or 'ipv6'. If key doesn't exist, assume 'ipv4'
-                if "ipFamily" not in service:
-                    ipfamily = 'ipv4'
-                else:
-                    ipfamily = service["ipFamily"]
-                
-                ## input validation: serviceType key must either be 'L2', 'L3', 'http-proxy', 'icap', or 'tap'
-                if "serviceType" not in service:
-                    raise F5ModuleError("Each service must contain an 'serviceType' key, of either 'L2', 'L3', 'http-proxy', 'icap', or 'tap'.")
-
-                service_chain = {}
-                svc_name = service["name"]
-                if not svc_name.startswith("ssloS_"):
-                    svc_name = "ssloS_" + svc_name
-                service_chain["name"] = svc_name
-                service_chain["ipFamily"] = ipfamily
-                service_chain["serviceType"] = service["serviceType"]
-                self.config["inputProperties"][1]["value"]["orderedServiceList"].append(service_chain)
-
-
-        ## create operation
-        if operation == "CREATE":            
-            #### TO DO: update JSON code for CREATE operation
-            self.config["name"] = "sslo_obj_SERVICE_CHAIN_CREATE_" + self.want.name
-
-
-        ## modify/delete operations
-        elif operation in ["DELETE", "MODIFY"]:
-            self.config["name"] = "sslo_obj_SERVICE_CHAIN_MODIFY_" + self.want.name
-
-            ## get object ID and add to deploymentReference and existingBlockId values
-            uri = "/mgmt/shared/iapp/blocks/"
-            query = "?$filter=name+eq+'{0}'&$select=id".format(self.want.name)
-            response = self.client.get(uri + query)
-
-            if response['code'] not in [200, 201, 202]:
-                raise F5ModuleError(response['contents'])
-
-            try:
-                id = response['contents']["items"][0]['id']
-                self.config["inputProperties"][0]["value"]["deploymentReference"] = "https://localhost/mgmt/shared/iapp/blocks/" + id
-                self.config["inputProperties"][1]["value"]["existingBlockId"] = id
-            except Exception:
-                raise F5ModuleError("Failure to create/modify - unable to fetch object ID")
-
-            
-            if operation in ["MODIFY"]:
-                pass
-                #### TO DO: update JSON code for MODIFY operation
-        return self.config
-
-    def exec_module(self):
-        self.ssloVersion = self.getSsloVersion()
-        changed = False
-        result = dict()
-        state = self.want.state
-
-        ## test for correct TMOS version
-        if self.ssloVersion < min_version or self.ssloVersion > max_version:
-            raise F5ModuleError("Unsupported SSL Orchestrator version, requires a version between min(" + str(min_version) + ") and max(" + str(max_version) + ")")
-
-        
-        ## enable/disable testdev to output to JSON only for testing (1) or push config to server (0)
-        testdev = 0
-        if testdev:
-            self.exists()
-            jsonstr = self.update_json("MODIFY")
-            print_output.append("jsonstr = " + str(jsonstr))
-        
-        else:
-            if state == 'present':
-                changed = self.update()
-            elif state == 'absent':
-                changed = self.absent()
-
-
-        result.update(dict(changed=changed))
-        print_output.append('changed=' + str(changed))
-        return result
-
-
-    def update(self):
-        if self.module.check_mode:
-            return True
-
-        ## use this method to create the objects (if not exists) or modify (if exists)
-        if self.exists():
-            ## MODIFY: object exists - perform modify - get modified json first
-            jsonstr = self.update_json("MODIFY")
-
-            if self.want.mode == "output":
-                print_output.append(jsonstr)
-
-            else:
-                ## post the object modify json
-                uri = "/mgmt/shared/iapp/blocks/"
-
-                response = self.client.post(uri, data=jsonstr)
-                if response['code'] not in [200, 201, 202]:
-                    raise F5ModuleError(response['contents'])
-
-                ## get operation id from last request and loop through check
-                self.operationId = str(response['contents']["id"])
-                attempts = 1
-                error = ""
-                while attempts <= obj_attempts:
-                    uri = "/mgmt/shared/iapp/blocks/"
-
-                    query = "?$filter=id+eq+'{0}'".format(self.operationId)
-                    response = self.client.get(uri + query)
-                    if response['code'] not in [200, 201, 202]:
-                        raise F5ModuleError(response['contents'])
-                    try:
-                        if response['contents']["items"][0]["state"] == "BOUND":
-                            return True
-                        elif response['contents']["items"][0]["state"] == "ERROR":
-                            error = str(response['contents']["items"][0]["error"])
-                            break
-                    except Exception:
-                        time.sleep(1)
-                        attempts += 1
-                
-                if error != "":
-                    ## delete attempted configuration and raise error
-                    self.deleteOperation(self.operationId)
-                    raise F5ModuleError("Creation error: " + error)
-                else:
-                    raise F5ModuleError("Object " + self.want.name + " create/modify operation timeout")
-
-        else:
-            ## CREATE: object doesn't exist - perform create - get modified json first
-            jsonstr = self.update_json("CREATE")
-            
-            if self.want.mode == "output":
-                print_output.append(jsonstr)
-
-            else:
-                ## post the object create json
-                uri = "/mgmt/shared/iapp/blocks/"
-                response = self.client.post(uri, data=jsonstr)
-                if response['code'] not in [200, 201, 202]:
-                    raise F5ModuleError(response['contents'])
-
-                ## get operation id from last request and loop through check
-                self.operationId = str(response['contents']["id"])
-                attempts = 1
-                error = ""
-                while attempts <= obj_attempts:
-                    uri = "/mgmt/shared/iapp/blocks/"
-                    query = "?$filter=id+eq+'{0}'".format(self.operationId)
-                    response = self.client.get(uri + query)
-                    if response['code'] not in [200, 201, 202]:
-                        raise F5ModuleError(response['contents'])
-
-                    try:
-                        if response['contents']["items"][0]["state"] == "BOUND":
-                            return True
-                        elif response['contents']["items"][0]["state"] == "ERROR":
-                            error = str(response['contents']["items"][0]["error"])
-                            break
-                    except Exception:
-                        time.sleep(1)
-                        attempts += 1
-                
-                if error != "":
-                    ## delete attempted configuration and raise error
-                    self.deleteOperation(self.operationId)
-                    raise F5ModuleError("Creation error: " + self.operationId + ":" + error)
-                else:
-                    raise F5ModuleError("Object " + self.want.name + " create/modify operation timeout")
-
-
-    def absent(self):
-        ## use this method to delete the objects (if exists)
-        if self.exists():
-            if self.module.check_mode:
+    def wait_for_task(self, task_id):
+        error = None
+        delay, period = self.want.timeout
+        for x in range(0, period):
+            task = self._check_task_on_device(task_id)
+            if task['state'] == 'BOUND':
                 return True
+            if task['state'] == 'ERROR':
+                error = str(task['error'])
+                break
+            time.sleep(delay)
+        if error:
+            self.delete_failed_operation_on_device(task_id)
+            raise F5ModuleError(f"{self.operation} operation error: {task_id} : {error}")
+        raise F5ModuleError(
+            "Module timeout reached, state change is unknown, "
+            "please increase the timeout parameter for long lived actions."
+        )
 
-            ## DELETE: object doesn't exist - perform create - get modified json first
-            jsonstr = self.update_json("DELETE")
-            
-            if self.want.mode == "output":
-                print_output.append(jsonstr)
-
-            else:
-                ## post the object create json
-                uri = "/mgmt/shared/iapp/blocks/"
-                response = self.client.post(uri, data=jsonstr)
-                if response['code'] not in [200, 201, 202]:
-                    raise F5ModuleError(response['contents'])
-
-                ## get operation id from last request and loop through check
-                self.operationId = str(response['contents']["id"])
-                attempts = 1
-                error = ""
-                while attempts <= obj_attempts:
-                    uri = "/mgmt/shared/iapp/blocks/"
-                    query = "?$filter=id+eq+'{0}'".format(self.operationId)
-                    response = self.client.get(uri + query)
-                    if response['code'] not in [200, 201, 202]:
-                        raise F5ModuleError(response['contents'])
-                    try:
-                        if response['contents']["items"][0]["state"] == "BOUND":
-                            return True
-                        elif response['contents']["items"][0]["state"] == "ERROR":
-                            error = str(response['contents']["items"][0]["error"])
-                            break
-                    except Exception:
-                        time.sleep(1)
-                        attempts += 1
-
-                if error != "":
-                    ## delete attempted configuration and raise error
-                    self.deleteOperation(self.operationId)
-                    raise F5ModuleError("Creation error: " + self.operationId + ":" + error)
-                else:
-                    raise F5ModuleError("Object " + self.want.name + " create/modify operation timeout")
-
-        else:
-            ## object doesn't exit - just exit (changed = False)
-            return False
-
-    def exists(self):
-        # use this method to see if the objects already exists - queries for the respective application service object
+    def _check_task_on_device(self, task_id):
         uri = "/mgmt/shared/iapp/blocks/"
-        query = "?$filter=name+eq+'{0}'".format(self.want.name)
+        query = f"?$filter=id+eq+'{task_id}'"
         response = self.client.get(uri + query)
-
-        if response['code'] in [200, 201, 202]:
-            foundit = 0
-            for i in range(0, len(response['contents']["items"])):
-                try:
-                    if str(response['contents']["items"][i]["name"]) == self.want.name:
-                        foundit = 1
-                        self.existing_config = response['contents']["items"][i]
-                        break
-                except Exception:
-                    pass
-
-            if foundit == 1:
-                return True
-            else:
-                return False
-
-        else:
-            return False
+        if response['code'] not in [200, 201, 202]:
+            raise F5ModuleError(response['contents'])
+        return response['contents']['items'][0]
 
 
 class ArgumentSpec(object):
@@ -590,42 +552,54 @@ class ArgumentSpec(object):
         self.supports_check_mode = True
         argument_spec = dict(
             name=dict(required=True),
-            services=dict(type='list', required=True),
+            services=dict(
+                type='list',
+                elements='dict',
+                options=dict(
+                    service_name=dict(),
+                    type=dict(
+                        choices=['L2', 'L3', 'http-proxy', 'icap', 'tap']
+                    ),
+                    ip_family=dict(
+                        choices=['ipv4', 'ipv6']
+                    )
+                ),
+                required_together=['service_name', 'type'],
+                required_one_of=['service_name', 'type']
+            ),
+            timeout=dict(
+                type='int',
+                default=300
+            ),
             state=dict(
                 default='present',
-                choices=['absent','present']
+                choices=['absent', 'present']
             ),
-            mode=dict(
-                choices=["update","output"],
-                default="update"
+            dump_json=dict(
+                type='bool',
+                default='no'
             )
         )
         self.argument_spec = {}
         self.argument_spec.update(argument_spec)
+        self.required_if = [
+            ['state', 'present', ['services']]
+        ]
+
 
 def main():
-    ## start here
-
-    ## define global print_output
-    global print_output
-    print_output = []
-
-    ## define argumentspec
     spec = ArgumentSpec()
+
     module = AnsibleModule(
         argument_spec=spec.argument_spec,
         supports_check_mode=spec.supports_check_mode,
+        required_if=spec.required_if
     )
 
-    ## send to exec_module, result contains output of tasks
     try:
         mm = ModuleManager(module=module, connection=Connection(module._socket_path))
         results = mm.exec_module()
-        result = dict(
-          **results,
-          print_output=print_output
-        )
-        module.exit_json(**result)
+        module.exit_json(**results)
     except F5ModuleError as ex:
         module.fail_json(msg=str(ex))
 

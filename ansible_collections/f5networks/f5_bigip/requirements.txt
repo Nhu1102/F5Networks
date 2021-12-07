@@ -1,4 +1,4 @@
-git aipaddress; python_version < '3.5'
+ipaddress; python_version < '3.5'
 cryptography
 objectpath
 ordereddict

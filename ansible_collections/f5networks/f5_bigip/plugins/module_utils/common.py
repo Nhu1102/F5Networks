@@ -7,9 +7,12 @@ from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
 import copy
+import json
 import os
 import re
 import datetime
+
+from jinja2 import Environment
 
 from ansible.module_utils._text import to_text
 from ansible.module_utils.connection import exec_command
@@ -29,6 +32,14 @@ from ansible_collections.ansible.netcommon.plugins.module_utils.network.common.u
 from ansible_collections.f5networks.f5_bigip.plugins.module_utils.constants import (
     MANAGED_BY_ANNOTATION_VERSION, MANAGED_BY_ANNOTATION_MODIFIED
 )
+
+
+def process_json(data, template):
+    jinja_env = Environment()
+    template = jinja_env.from_string(template)
+    content = template.render(params=data)
+    my_json = json.loads(content)
+    return my_json
 
 
 def is_empty_list(seq):

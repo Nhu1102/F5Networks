@@ -1,21 +1,12 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
-# 
-# Copyright: (c) 2021, kevin-dot-g-dot-stewart-at-gmail-dot-com
+#
+# Copyright: (c) 2021, F5 Networks Inc.
 # GNU General Public License v3.0 (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
-# Version: 1.0.1
-
-#### Updates:
-#### 1.0.1 - added 9.0 support
-#          - changed max version
-#          - added clientssl "alpn" proxy support
-#          - added clientssl logPublisher support
-#          - added serverssl logPublisher support
-#          - updated version and previousVersion keys to match target SSLO version
-
 
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
+
 
 DOCUMENTATION = r'''
 ---
@@ -27,816 +18,1228 @@ version_added: "1.0.0"
 options:
   name:
     description:
-      - Specifies the name of the SSL configuration. Configuration auto-prepends "ssloT_" to service.
-        Service name should be less than 14 characters and not contain dashes "-".
+      - Specifies the name of the authentication object.
+      - Configuration auto-prepends C(ssloT_) to the object.
+      - Names should be less than 14 characters and not contain dashes C(-).
     type: str
     required: True
-  clientSettings:
+  client_settings:
     description:
       - Specifies the client-side SSL settings
+    type: dict
     suboptions:
-      cipherType:
+      proxy_type:
         description: 
-            - Defines the type of cipher used, either "string" (for cipher strings), or "group" (an existing cipher group).
+            - Defines the type of proxy to configure.
+            - Parameter is immutable after object has been created.
+            - Parameter is required when C(state) is C(present).
         type: str
         choices: 
-            - string
-            - group
-        default: string
-      cipher:
+          - forward
+          - reverse
+      cipher_type:
         description: 
-            - Defines the actual cipher string (ex. "DEFAULT"), or existing cipher group (ex. /Common/f5-default) to use.
+            - Defines the type of cipher used.
         type: str
-        default: DEFAULT
-      enableTLS1_3: 
+        choices: 
+          - string
+          - group
+      cipher_string:
         description: 
-            - Defines whether or not to enable client-side TLSv1.3 support. When enabled, the cipherType must be "group" and cipher must indicate an existing cipher group.
-        type: bool
-        default: False
+            - Defines the string used for cipher strings.
+            - Parameter mutually exclusive with C(cipher_group).
+            - Parameter required when C(cipher_type) is C(string).
+        type: str
+      cipher_group:
+        description: 
+            - Defines the existing cipher group.
+            - Parameter mutually exclusive with C(cipher_string).
+            - Parameter required when C(cipher_type) is C(group).
+        type: str
       cert:
         description: 
-            - Defines the certificate applied in the client side settings. For a forward proxy this is the template certificate and (ex. /Common/default.crt). For a reverse proxy, this is the client-facing server certificate.
+          - Defines the certificate applied in the client side settings.
+          - Parameter required together with C(key).
         type: str
-        default: /Common/default.crt
       key:
         description: 
-            - Defines the private key applied in the client side settings. For a forward proxy this is the template key and (ex. /Common/default.key). For a reverse proxy, this is the client-facing server private key.
-        type: str
-        default: /Common/default.key  
+          - Defines the private key applied in the client side settings.
+          - Parameter required together with C(cert).
       chain:
         description: 
-            - Defines the certificate keychain in the client side settings. 
+          - Defines the certificate keychain in the client side settings. 
         type: str
-        default: None      
-      caCert:
+      ca_cert:
         description: 
-            - Defines the CA certificate applied in the client side settings. This is the signing/forging CA certificate used for forward proxy TLS handling. This setting is not applicable in reverse proxy SSL.
+          - Defines the CA certificate applied in the client side settings.
+          - Parameter is required when C(proxy_type) is C(forward), this setting
+            is ignored otherwise.
+          - Parameter required together with C(ca_key).
         type: str
-        default: None
-      caKey:
+      ca_key:
         description: 
-            - Defines the CA private key applied in the client side settings. This is the signing/forging CA private key used for forward proxy TLS handling. This setting is not applicable in reverse proxy SSL.
+          - Defines the CA private key applied in the client side settings.
+          - Parameter is required when C(proxy_type) is C(forward), this setting
+            is ignored otherwise.
+          - Parameter required together with C(ca_key).
         type: str
-        default: None  
-      caChain:
+      ca_chain:
         description: 
-            - Defines the CA certificate keychain in the client side settings. This would contain any CA subordinated in the trust chain between the signing CA and explicitly-trusted root certificate. If required, it should contain any intermediate CA certificates, up to but not including the self-signed root CA.
+          - Defines the CA certificate keychain in the client side settings.
+          - Parameter is used C(proxy_type) is C(forward), this setting
+            is ignored otherwise.
         type: str
-        default: None
       alpn:
         description: 
-            - Requires 9.0+. Enables or disables ALPN HTTP/2 full proxy in an outbound (forward proxy) topology.
+          - "Enables or disables ALPN HTTP/2 full proxy."
+          - Parameter can only be used when C(proxy_type) is C(forward).
+          - Parameter only available in SSLO version 9.0 and above.
         type: bool
-        default: False
-      logPublisher:
+      log_publisher:
         description: 
-            - Requires 9.0+. Defines a specific log publisher to use for client-side SSL-related events.
+          - Defines a specific log publisher to use for client-side SSL-related events.
+          - Parameter only available in SSLO version 9.0 and above.
         type: str
-        default: /Common/sys-ssl-publisher
-  serverSettings:
+  server_settings:
     description:
       - Specifies the server-side SSL settings
+    type: dict
     suboptions:
-      cipherType:
+      cipher_type:
         description: 
-            - Defines the type of cipher used, either "string" (for cipher strings), or "group" (an existing cipher group).
+            - Defines the type of cipher used.
         type: str
         choices: 
-            - string
-            - group
-        default: string
-      cipher:
+          - string
+          - group
+      cipher_string:
         description: 
-            - Defines the actual cipher string (ex. "DEFAULT"), or existing cipher group (ex. /Common/f5-default) to use.
+            - Defines the string used for cipher strings.
+            - Parameter mutually exclusive with C(cipher_group).
+            - Parameter required when C(cipher_type) is C(string).
         type: str
-        default: DEFAULT
-      enableTLS1_3: 
+      cipher_group:
         description: 
-            - Defines whether or not to enable server-side TLSv1.3 support. When enabled, the cipherType must be "group" and cipher must indicate an existing cipher group.
-        type: bool
-        default: False
-      caBundle:
-        description: 
-            - Defines the certificate authority bundle used to validate remote server certificates. This setting is most applicable in the forward proxy use case to validate remote (Internat) server certificates.
+            - Defines the existing cipher group.
+            - Parameter mutually exclusive with C(cipher_string).
+            - Parameter required when C(cipher_type) is C(group).
         type: str
-        default: /Common/ca-bundle.crt
-      blockExpired:
+      ca_bundle:
         description: 
-            - Defines the action to take if an expired remote server certificate is encountered. For forward proxy the default is to ignore expired certificates (False). For reverse proxy the default is to drop expired certificates (True).
-        type: bool
-        default: False
-      blockUntrusted:
+          - Defines the certificate authority bundle used to validate remote server certificates.
+          - This setting is most applicable in the forward proxy use case to validate remote server certificates.
+        type: str
+    block_expired:
         description: 
-            - Defines the action to take if an untrusted remote server certificate is encountered, based on the defined caBundle. For forward proxy the default is to ignore untrusted certificates (False). For reverse proxy the default is to drop untrusted certificates (True).
+            - Defines the action to take if an expired remote server certificate is encountered.
+            - For reverse proxy the default is to ignore expired certificates C(no).
+            - For forward proxy the default is to drop expired certificates C(yes).
         type: bool
-        default: False
+      block_untrusted:
+        description: 
+          - Defines the action to take if an untrusted remote server certificate is encountered, 
+            based on the defined caBundle. 
+          - For reverse proxy the default is to ignore untrusted certificates C(no).
+          - For forward proxy the default is to drop untrusted certificates C(yes).
+        type: bool
       ocsp:
         description: 
-            - Defines an OCSP configuration to use to perform certificate revocation checking again remote server certificates.
+          - Defines an OCSP configuration to use to perform certificate revocation checking
+            against remote server certificates.
         type: str
-        default: None
       crl:
         description: 
-            - Defines a CRL configuration to use to perform certificate revocation checking again remote server certificates.
+          - Defines a CRL configuration to use to perform certificate revocation checking 
+            against remote server certificates.
         type: str
-        default: None
-      logPublisher:
+      log_publisher:
         description: 
-            - Requires 9.0+. Defines a specific log publisher to use for server-side SSL-related events.
+          - Defines a specific log publisher to use for server-side SSL-related events.
+          - Parameter only available in SSLO version 9.0 and above.
         type: str
-        default: /Common/sys-ssl-publisher
-  bypassHandshakeFailure:
+  bypass_handshake_failure:
     description: 
-        - Defines the action to take if a server side TLS handshake failure is detected. A value of False will cause the connection to fail. A value of True will shutdown TLS decryption and allow the connection to proceed un-decrypted.
+      - Defines the action to take if a server side TLS handshake failure is detected.
+      - A value of C(no) will cause the connection to fail.
+      - A value of C(no) will shutdown TLS decryption and allow the connection to proceed un-decrypted.
     type: bool
-    default: False
-  bypassClientCertFailure:
+  bypass_client_cert_failure:
     description: 
-        - Defines the action to take if a server side TLS handshake client certificate request is detected. A value of False will cause the connection to fail. A value of True will shutdown TLS decryption and allow the connection to proceed un-decrypted.
+      - Defines the action to take if a server side TLS handshake client certificate request is detected.
+      - A value of C(no) will cause the connection to fail.
+      - A value of C(yes) will shutdown TLS decryption and allow the connection to proceed un-decrypted.
     type: bool
-    default: False
-  
-  mode:
+  dump_json:
     description:
-      - Defines how this task is handled. With the default setting of 'update', the module performs the tasks required to update the target resource. With the 'output' setting, the resulting JSON object blocks are returned without updating the target resource. This option is useful for debugging, and when subordinate objects (ex. SSL, services, service chains, policy, resolver) are created in the same playbook, and their respectice output JSON referenced in a single Topology create task.
-    type: str
-    choices:
-      - update
-      - output
-    default: update
-    
+      - Sets the module to output a JSON blob for further consumption.
+      - When C(yes) does not make any changes on device and always returns C(changed=False).
+      - The output provided is idempotent in nature, meaning if there are no changes to be made during
+        C(MODIFY) on an existing service no json output will be generated.
+    type: bool
+    default: no
+  timeout:
+    description:
+      - The amount of time in seconds to wait for the C(CREATE), C(MODIFY) or C(DELETE) task to complete.
+      - The accepted value range is between C(10) and C(1800) seconds.
+    type: int
+    default: 300
   state:
     description:
-        - Specifies the present/absent state required.
+      - When C(state) is C(present), ensures the object is created or modified.
+      - When C(state) is C(absent), ensures that the service is removed.
     type: str
-    choices: 
-        - absent
-        - present
+    choices:
+      - present
+      - absent
     default: present
-
-extends_documentation_fragment: f5networks.f5_modules.f5
 author:
-  - Kevin Stewart (kevin-dot-g-dot-stewart-at-gmail-dot-com)
+  - Wojciech Wypior (@wojtek0806)
+  - Kevin Stewart (@kevingstewart)
 '''
 
 EXAMPLES = r'''
-- name: Create SSLO SSL Forward Proxy Settings (simple)
-  hosts: localhost
-  gather_facts: False
-  connection: local
-
+- hosts: all
   collections:
-    - kevingstewart.f5_sslo_ansible
+    - f5networks.f5_bigip
+  connection: httpapi
 
-  vars: 
-    provider:
-      server: 172.16.1.77
-      user: admin
-      password: admin
-      validate_certs: no
-      server_port: 443
-
+  vars:
+    ansible_host: "lb.mydomain.com"
+    ansible_user: "admin"
+    ansible_httpapi_password: "secret"
+    ansible_network_os: f5networks.f5_bigip.bigip
+    ansible_httpapi_use_ssl: yes
+  
   tasks:
-    - name: SSLO SSL forward proxy settings
+    - name: Create an SSLO SSL config with reverse proxy - output json only
       bigip_sslo_config_ssl:
-        provider: "{{ provider }}"
-        name: "demo_ssl"
-        clientSettings:
-          caCert: "/Common/subrsa.f5labs.com"
-          caKey: "/Common/subrsa.f5labs.com"
-      delegate_to: localhost
-
-- name: Create SSLO SSL Forward Proxy Settings
-  hosts: localhost
-  gather_facts: False
-  connection: local
-
-  collections:
-    - kevingstewart.f5_sslo_ansible
-
-  vars: 
-    provider:
-      server: 172.16.1.77
-      user: admin
-      password: admin
-      validate_certs: no
-      server_port: 443
-
-  tasks:
-    - name: SSLO SSL settings
-      bigip_sslo_config_ssl:
-        provider: "{{ provider }}"
-        name: "demo_ssl"
-        clientSettings:
-          cipherType: "group"
-          cipher: "/Common/f5-default"
-          enableTLS1_3: True
-          cert: "/Common/default.crt"
-          key: "/Common/default.key"
-          caCert: "/Common/subrsa.f5labs.com"
-          caKey: "/Common/subrsa.f5labs.com"
-          caChain: "/Common/my-ca-chain"
-          alpn: True
-          logPublisher: "/Common/my-ssl-publisher"
-        serverSettings:
-          cipherType: "group"
-          cipher: "/Common/f5-default"
-          enableTLS1_3: True
-          caBundle: "/Common/local-ca-bundle.crt"
-          blockExpired: False
-          blockUntrusted: False
-          ocsp: "/Common/my-ocsp"
-          crl: "/Common/my-crl"
-          logPublisher: "/Common/my-ssl-publisher"
-        bypassHandshakeFailure: True
-        bypassClientCertFailure: True
-      delegate_to: localhost
-
-- name: Create SSLO SSL Reverse Proxy Settings (simple)
-  hosts: localhost
-  gather_facts: False
-  connection: local
-
-  collections:
-    - kevingstewart.f5_sslo_ansible
-
-  vars: 
-    provider:
-      server: 172.16.1.77
-      user: admin
-      password: admin
-      validate_certs: no
-      server_port: 443
-
-  tasks:
-    - name: SSLO SSL settings
-      bigip_sslo_config_ssl:
-        provider: "{{ provider }}"
-        name: "demo_ssl"
-        clientSettings:
-          cert: "/Common/myserver.f5labs.com"
-          key: "/Common/myserver.f5labs.com"
-      delegate_to: localhost
-
-- name: Create SSLO SSL Reverse Proxy Settings
-  hosts: localhost
-  gather_facts: False
-  connection: local
-
-  collections:
-    - kevingstewart.f5_sslo_ansible
+        name: "reverse_foo"
+        client_settings:
+          proxy_type: "reverse"
+          cert: "/Common/sslo_test.crt"
+          key: "/Common/sslo_test.key"
+        dump_json: yes
     
-  vars: 
-    provider:
-      server: 172.16.1.77
-      user: admin
-      password: admin
-      validate_certs: no
-      server_port: 443
-
-  tasks:
-    - name: SSLO SSL settings
+    - name: Create an SSLO SSL config with forward proxy
       bigip_sslo_config_ssl:
-        provider: "{{ provider }}"
-        name: "demo5"
-        clientSettings:
-          cipherType: "group"
-          cipher: "/Common/f5-default"
-          enableTLS1_3: True
-          cert: "/Common/myserver.f5labs.com"
-          key: "/Common/myserver.f5labs.com"
-          chain: "/Common/my-ca-chain"
-        serverSettings:
-          cipherType: "group"
-          cipher: "/Common/f5-default"
-          enableTLS1_3: True
-          caBundle: "/Common/local-ca-bundle.crt"
-          blockExpired: False
-          blockUntrusted: False
-      delegate_to: localhost
+        name: "forward_foo"
+        client_settings:
+          proxy_type: "forward"
+          cipher_type: "group"
+          cipher_group: "/Common/f5-default"
+          ca_cert: "/Common/default.crt"
+          ca_key: "/Common/default.key"
+          alpn: yes
+        server_settings:
+          cipher_type: "group"
+          cipher_group: "/Common/f5-default"
+        bypass_handshake_failure: yes
+        timeout: 400
+
+    - name: Modify an SSLO SSL config with forward proxy
+      bigip_sslo_config_ssl:
+        name: "forward_foo"
+        client_settings:
+          proxy_type: "forward"
+          ca_cert: "/Common/sslo_test.crt"
+          ca_key: "/Common/sslo_test.key"
+
+    - name: Delete an SSLO SSL config
+      bigip_sslo_config_ssl:
+        name: "forward_foo"
+        state: absent
 '''
 
 RETURN = r'''
-name:
-  description:
-    - Changed name of SSL configuration.
-  type: str
-  sample: demo_ssl
-clientSettings:
-  description: client-side SSL settings
+client_settings:
+  description: Client-side SSL settings.
   type: complex
   contains:
-    cipherType:
-       description: defines "string" for cipher string, or "group" for cipher group
+    proxy_type:
+       description: The type of proxy configured.
+       type: str
+       sample: forward
+    cipher_type:
+       description: The type of cipher used.
        type: str
        sample: string
-    cipher:
-       description: defines the cipher string or an existing cipher group
+    cipher_string:
+       description: The string used for cipher strings.
        type: str
-       sample: DEFAULT or /Common/f5-default
-    enableTLS1_3:
-       description: enables or disables client-side TLSv1.3
-       type: bool
-       sample: True
+       sample: DEFAULT
+    cipher_group:
+       description: The existing cipher group
+       type: str
+       sample: /Common/f5-default
     cert:
-       description: defines the client-facing certificate. For forward proxy this is the template certificate. For reverse proxy this is the server certificate.
+       description: The certificate applied in the client side settings.
        type: str
        sample: /Common/default.crt
     key:
-       description: defines the client-facing private key. For forward proxy this is the template key. For reverse proxy this is the server private key.
+       description: The private key applied in the client side settings.
        type: str
        sample: /Common/default.key
     chain:
-       description: defines the client-facing CA certificate chain. For reverse proxy this is the server certificate's CA chain.
+       description: The certificate keychain in the client side settings.
        type: str
        sample: /Common/local-ca-chain.crt
-    caCert:
-       description: defines the issuing CA certificate for a forward proxy.
+    ca_cert:
+       description: The CA certificate applied in the client side settings.
        type: str
        sample: /Common/default.crt
-    caKey:
-       description: defines the issuing CA private key for a forward proxy.
+    ca_key:
+       description: The CA private key applied in the client side settings.
        type: str
        sample: /Common/default.key
-    caChain:
-       description: defines the CA certificate chain for the issuing CA in a forward proxy.
+    ca_chain:
+       description: The CA certificate keychain in the client side settings.
        type: str
        sample: /Common/local-ca-chain.crt
     alpn:
-       description: requires 9.0+. Enables or disables ALPN HTTP/2 full proxy through a forward proxy topology.
+       description: "Enables or disables ALPN HTTP/2 full proxy."
        type: bool
        sample: True
-    logPublisher:
-       description: requires 9.0+. Defines a specific log publisher for client-side SSL-related events.
+    log_publisher:
+       description: The log publisher used for client-side SSL-related events.
        type: str
        sample: /Common/sys-ssl-publisher
-serverSettings:
-  description: network settings for for-service configuration
+server_settings:
+  description: Specifies the server-side SSL settings.
   type: complex
   contains:
-    cipherType:
-       description: defines "string" for cipher string, or "group" for cipher group
+    cipher_type:
+       description: The type of cipher used.
        type: str
        sample: string
-    cipher:
-       description: defines the cipher string or an existing cipher group
+    cipher_string:
+       description: The string used for cipher strings.
        type: str
-       sample: DEFAULT or /Common/f5-default
-    enableTLS1_3:
-       description: enables or disables server-side TLSv1.3
-       type: bool
-       sample: True 
-    caBundle:
-       description: defines a CA bundle used to valdate remote server certificates.
+       sample: DEFAULT
+    cipher_group:
+       description: The existing cipher group
+       type: str
+       sample: /Common/f5-default
+    ca_bundle:
+       description: The certificate authority bundle used to validate remote server certificates
        type: str
        sample: /Common/ca-bundle.crt
-    blockExpired:
-       description: defines the action to take on receiving an expired remote server certificate, True = block, False = ignore.
+    block_expired:
+       description: The action to take if an expired remote server certificate is encountered.
        type: bool
        sample: True
-    blockUntrusted:
-       description: defines the action to take on receiving an untrusted remote server certificate, True = block, False = ignore.
+    block_untrusted:
+       description: The action to take if an untrusted remote server certificate is encountered
        type: bool
        sample: True
     ocsp:
-       description: defines aan existing OCSP configuration to validate revocation of remote server certificates.
+       description: Then existing OCSP configuration to validate revocation of remote server certificates.
        type: str
        sample: /Common/my-ocsp
     crl:
-       description: defines aan existing CRL configuration to validate revocation of remote server certificates.
+       description: The existing CRL configuration to validate revocation of remote server certificates.
        type: str
        sample: /Common/my-crl
-    logPublisher:
-       description: requires 9.0+. Defines a specific log publisher for server-side SSL-related events.
+    log_publisher:
+       description: The log publisher used for server-side SSL-related events.
        type: str
        sample: /Common/sys-ssl-publisher
-bypassHandshakeFailure:
+bypass_handshake_failure:
   description:
-    - Defines the action to take on receiving a TLS handshake alert from a server. True = bypass decryption and allow through, False = block
+    - Defines the action to take if a server side TLS handshake failure is detected.
   type: bool
   sample: True
-bypassClientCertFailure:
+bypass_client_cert_failure:
   description:
-    - Defines the action to take on receiving a TLS handshake client certificate request from a server. True = bypass decryption and allow through, False = block
+    - Defines the action to take if a server side TLS handshake client certificate request is detected.
   type: bool
   sample: True
-
-mode:
-  description: describes the action to take on the task.
-  type: str
-  sample: update
-  
-state:
-  description:
-    - Changed state.
-  type: str
-  sample: present
 '''
-import re
+
 import time
+from distutils.version import LooseVersion
 
 from ansible.module_utils.basic import AnsibleModule
 from ansible.module_utils.connection import Connection
 
-from ..module_utils.client import F5Client
-
+from ..module_utils.client import (
+    F5Client, sslo_version
+)
 from ..module_utils.common import (
-    F5ModuleError, AnsibleF5Parameters,
+    F5ModuleError, AnsibleF5Parameters, process_json,
+    flatten_boolean
+)
+from ..module_utils.constants import (
+    min_sslo_version, max_sslo_version, json_enable_tls13
+)
+
+from ..module_utils.sslo_templates.sslo_ssl import (
+    create_modify, delete
 )
 
 
-global print_output
-global json_template
-global obj_attempts
-global min_version
-global max_version
-
-print_output = []
-
-## define object creation attempts count (with 1 seconds pause between each attempt)
-obj_attempts = 20
-
-## define minimum supported tmos version - min(SSLO 5.x)
-min_version = 5.0
-
-## define maximum supported tmos version - max(SSLO 8.x)
-max_version = 9.0
-
-json_template = {
-    "name":"f5-ssl-orchestrator-gc",
-    "inputProperties":[
-       {
-          "id":"f5-ssl-orchestrator-operation-context",
-          "type":"JSON",
-          "value":{
-             "operationType":"CREATE",
-             "deploymentType":"SSL_SETTINGS",
-             "deploymentName":"TEMPLATE_NAME",
-             "deploymentReference":"",
-             "partition":"Common",
-             "strictness":False
-          }
-       },
-       {
-          "id":"f5-ssl-orchestrator-tls",
-          "type":"JSON",
-          "value":{
-             "sslSettingsReference":"",
-             "sslSettingsName":"",
-             "description":"",
-             "previousVersion":"7.2",
-             "version":"7.2",
-             "generalSettings":{
-                "isForwardProxy":True,
-                "bypassHandshakeAlert":False,
-                "bypassClientCertFailure":False
-             },
-             "clientSettings":{
-                "ciphers":{
-                   "isCipherString":True,
-                   "cipherString":"DEFAULT",
-                   "cipherGroup":"/Common/f5-default"
-                },
-                "certKeyChain":[
-                   {
-                      "cert":"/Common/default.crt",
-                      "key":"/Common/default.key",
-                      "chain":"",
-                      "passphrase":"",
-                      "name":"CERT_KEY_CHAIN_0"
-                   }
-                ],
-                "caCertKeyChain":[],
-                "forwardByPass":True,
-                "enabledSSLProcessingOptions":[]
-             },
-             "serverSettings":{
-                "ciphers":{
-                   "isCipherString":True,
-                   "cipherString":"DEFAULT",
-                   "cipherGroup":"/Common/f5-default"
-                },
-                "caBundle":"/Common/ca-bundle.crt",
-                "expiredCertificates":False,
-                "untrustedCertificates":False,
-                "ocsp":"",
-                "crl":"",
-                "enabledSSLProcessingOptions":[]
-             },
-             "name":"TEMPLATE_NAME",
-             "advancedMode":"off",
-             "strictness":False,
-             "partition":"Common"
-          }
-       },
-       {
-          "id":"f5-ssl-orchestrator-topology",
-          "type":"JSON"
-       }
-    ],
-    "configurationProcessorReference":{
-       "link":"https://localhost/mgmt/shared/iapp/processors/f5-iappslx-ssl-orchestrator-gc"
-    },
-    "configProcessorTimeoutSeconds": 120,
-    "statsProcessorTimeoutSeconds": 60,
-    "configProcessorAffinity": {
-        "processorPolicy": "LOCAL",
-        "affinityProcessorReference": {
-            "link": "https://localhost/mgmt/shared/iapp/affinity/local"
-        }
-    },
-    "state":"BINDING",
-    "presentationHtmlReference":{
-       "link":"https://localhost/iapps/f5-iappslx-ssl-orchestrator/sgc/sgcIndex.html"
-    },
-    "operation":"CREATE"
- }
-
-json_ca_cert_template = {
-    "cert":"/Common/default.crt",
-    "key":"/Common/defaut.key",
-    "chain":"",
-    "isCa":True,
-    "usage":"CA",
-    "port":"0",
-    "passphrase":"",
-    "certKeyChainMismatch":False,
-    "isDuplicateVal":False,
-    "name":"CA_CERT_KEY_CHAIN_0"
-}
-
-json_enable_tls13 = {
-    "name":"TLSv1.3",
-    "value":"TLSv1.3"
-}
-
 class Parameters(AnsibleF5Parameters):
     api_map = {}
-    updatables = []
     api_attributes = []
-    returnables = []
+
+    returnables = [
+        'client_cipher_type',
+        'client_cipher_string',
+        'client_cipher_group',
+        'client_cert',
+        'client_key',
+        'client_chain',
+        'client_ca_cert',
+        'client_ca_key',
+        'client_ca_chain',
+        'alpn',
+        'client_log_publisher',
+        'client_enable_tls13',
+        'server_cipher_type',
+        'server_cipher_string',
+        'server_cipher_group',
+        'server_ca_bundle',
+        'block_expired',
+        'block_untrusted',
+        'server_ocsp',
+        'server_crl',
+        'server_log_publisher',
+        'server_enable_tls13',
+        'bypass_handshake_failure',
+        'bypass_client_cert_failure',
+        'proxy_type'
+    ]
+
+    updatables = [
+        'client_cipher_type',
+        'client_cipher_string',
+        'client_cipher_group',
+        'client_cert',
+        'client_key',
+        'client_chain',
+        'client_ca_cert',
+        'client_ca_key',
+        'client_ca_chain',
+        'alpn',
+        'client_log_publisher',
+        'client_enable_tls13',
+        'server_cipher_type',
+        'server_cipher_string',
+        'server_cipher_group',
+        'server_ca_bundle',
+        'block_expired',
+        'block_untrusted',
+        'server_ocsp',
+        'server_crl',
+        'server_log_publisher',
+        'server_enable_tls13',
+        'bypass_handshake_failure',
+        'bypass_client_cert_failure',
+        'proxy_type'
+    ]
+
 
 class ApiParameters(Parameters):
-    pass
-
-class ModuleParameters(Parameters):
-    global print_output
-
     @property
-    def name(self):
-        name = self._values['name']
-        name = "ssloT_" + name
-        return name
+    def proxy_type(self):
+        if self.client_ca_cert is None:
+            return 'reverse'
+        return 'forward'
 
     @property
     def client_cipher_type(self):
-        try:
-            client_cipher_type = self._values['clientSettings']['cipherType']
-            if client_cipher_type is None:
-                return "string"
-            return client_cipher_type
-        except:
-            return "string"
+        if self._values['clientSettings'] is None:
+            return None
+        cipher_type = self._values['clientSettings']['ciphers']['isCipherString']
+        if cipher_type is True:
+            return 'string'
+        if cipher_type is False:
+            return 'group'
 
     @property
-    def client_cipher(self):
-        try:
-            client_cipher = self._values['clientSettings']['cipher']
-            if client_cipher is None:
-                return "DEFAULT"
-            return client_cipher
-        except:
-            return "DEFAULT"
+    def client_cipher_string(self):
+        if self._values['clientSettings'] is None:
+            return None
+        return self._values['clientSettings']['ciphers']['cipherString']
 
     @property
-    def client_enable_tls13(self):
-        try:
-            client_enable_tls13 = self._values['clientSettings']['enableTLS1_3']
-            if client_enable_tls13 is None:
-                return False
-            return client_enable_tls13
-        except:
-            return False
-    
+    def client_cipher_group(self):
+        if self._values['clientSettings'] is None:
+            return None
+        return self._values['clientSettings']['ciphers']['cipherGroup']
+
     @property
     def client_cert(self):
-        try:
-            client_cert = self._values['clientSettings']['cert']
-            if client_cert is None:
-                return "/Common/default.crt"
-            return client_cert
-        except:
-            return "/Common/default.crt"
+        if self._values['clientSettings'] is None:
+            return None
+        if not self._values['clientSettings']['certKeyChain']:
+            return None
+        return self._values['clientSettings']['certKeyChain'][0]['cert']
 
     @property
     def client_key(self):
-        try:
-            client_key = self._values['clientSettings']['key']
-            if client_key is None:
-                return "/Common/default.key"
-            return client_key
-        except:
-            return "/Common/default.key"
+        if self._values['clientSettings'] is None:
+            return None
+        if not self._values['clientSettings']['certKeyChain']:
+            return None
+        return self._values['clientSettings']['certKeyChain'][0]['key']
 
     @property
     def client_chain(self):
-        try:
-            client_chain = self._values['clientSettings']['chain']
-            if client_chain is None:
-                return None
-            return client_chain
-        except: 
+        if self._values['clientSettings'] is None:
             return None
+        if not self._values['clientSettings']['certKeyChain']:
+            return None
+        return self._values['clientSettings']['certKeyChain'][0]['chain']
 
     @property
     def client_ca_cert(self):
-        try:
-            client_ca_cert = self._values['clientSettings']['caCert']
-            if client_ca_cert is None:
-                return None
-            return client_ca_cert
-        except:
+        if self._values['clientSettings'] is None:
             return None
+        if not self._values['clientSettings']['caCertKeyChain']:
+            return None
+        return self._values['clientSettings']['caCertKeyChain'][0]['cert']
 
     @property
     def client_ca_key(self):
-        try:
-            client_ca_key = self._values['clientSettings']['caKey']
-            if client_ca_key is None:
-                return None
-            return client_ca_key
-        except:
+        if self._values['clientSettings'] is None:
             return None
+        if not self._values['clientSettings']['caCertKeyChain']:
+            return None
+        return self._values['clientSettings']['caCertKeyChain'][0]['key']
 
     @property
     def client_ca_chain(self):
-        try:
-            client_ca_chain = self._values['clientSettings']['caChain']
-            if client_ca_chain is None:
-                return None
-            return client_ca_chain
-        except:
+        if self._values['clientSettings'] is None:
             return None
+        if not self._values['clientSettings']['caCertKeyChain']:
+            return None
+        return self._values['clientSettings']['caCertKeyChain'][0]['chain']
+
+    @property
+    def alpn(self):
+        if self._values['clientSettings'] is None:
+            return None
+        return self._values['clientSettings'].get('alpn', None)
+
+    @property
+    def client_log_publisher(self):
+        if self._values['clientSettings'] is None:
+            return None
+        return self._values['clientSettings'].get('logPublisher', None)
+
+    @property
+    def client_enable_tls13(self):
+        if self._values['clientSettings'] is None:
+            return None
+        return self._values['clientSettings'].get('enabledSSLProcessingOptions', None)
 
     @property
     def server_cipher_type(self):
-        try:
-            server_cipher_type = self._values['serverSettings']['cipherType']
-            if server_cipher_type is None:
-                return "string"
-            return server_cipher_type
-        except:
-            return "string"
+        if self._values['serverSettings'] is None:
+            return None
+        cipher_type = self._values['serverSettings']['ciphers']['isCipherString']
+        if cipher_type is True:
+            return 'string'
+        if cipher_type is False:
+            return 'group'
 
     @property
-    def server_cipher(self):
-        try:
-            server_cipher = self._values['serverSettings']['cipher']
-            if server_cipher is None:
-                return "DEFAULT"
-            return server_cipher
-        except:
-            return "DEFAULT"
+    def server_cipher_string(self):
+        if self._values['serverSettings'] is None:
+            return None
+        return self._values['serverSettings']['ciphers']['cipherString']
 
     @property
-    def server_enable_tls13(self):
-        try:
-            server_enable_tls13 = self._values['serverSettings']['enableTLS1_3']
-            if server_enable_tls13 is None:
-                return False
-            return server_enable_tls13
-        except:
-            return False
-    
+    def server_cipher_group(self):
+        if self._values['serverSettings'] is None:
+            return None
+        return self._values['serverSettings']['ciphers']['cipherGroup']
+
     @property
     def server_ca_bundle(self):
-        try:
-            server_ca_bundle = self._values['serverSettings']['caBundle']
-            if server_ca_bundle is None:
-                return "/Common/ca-bundle.crt"
-            return server_ca_bundle
-        except:
-            return "/Common/ca-bundle.crt"
+        if self._values['serverSettings'] is None:
+            return None
+        return self._values['serverSettings'].get('caBundle', None)
 
     @property
-    def server_block_expired(self):
-        try:
-            server_block_expired = self._values['serverSettings']['blockExpired']
-            if server_block_expired is None:
-                return None
-            return server_block_expired
-        except:
+    def block_expired(self):
+        if self._values['serverSettings'] is None:
             return None
+        return self._values['serverSettings'].get('expiredCertificates', None)
 
     @property
-    def server_block_untrusted(self):
-        try:
-            server_block_untrusted = self._values['serverSettings']['blockUntrusted']
-            if server_block_untrusted is None:
-                return None
-            return server_block_untrusted
-        except:
+    def block_untrusted(self):
+        if self._values['serverSettings'] is None:
             return None
+        return self._values['serverSettings'].get('untrustedCertificates', None)
 
     @property
     def server_ocsp(self):
-        try:
-            server_ocsp = self._values['serverSettings']['ocsp']
-            if server_ocsp is None:
-                return None
-            return server_ocsp
-        except:
+        if self._values['serverSettings'] is None:
             return None
+        return self._values['serverSettings'].get('ocsp', None)
 
     @property
     def server_crl(self):
-        try:
-            server_crl = self._values['serverSettings']['crl']
-            if server_crl is None:
-                return None
-            return server_crl
-        except:
+        if self._values['serverSettings'] is None:
             return None
+        return self._values['serverSettings'].get('crl', None)
+
+    @property
+    def server_log_publisher(self):
+        if self._values['serverSettings'] is None:
+            return None
+        return self._values['serverSettings'].get('logPublisher', None)
+
+    @property
+    def server_enable_tls13(self):
+        if self._values['serverSettings'] is None:
+            return None
+        return self._values['serverSettings'].get('enabledSSLProcessingOptions', None)
 
     @property
     def bypass_handshake_failure(self):
-        bypass_handshake_failure = self._values['bypassHandshakeFailure']
-        if bypass_handshake_failure is None:
-            return False
-        return bypass_handshake_failure
-    
-    @property
-    def bypass_clientcert_failure(self):
-        bypass_clientcert_failure = self._values['bypassClientCertFailure']
-        if bypass_clientcert_failure is None:
-            return False
-        return bypass_clientcert_failure
+        return self._values['generalSettings']['bypassHandshakeAlert']
 
     @property
-    def mode(self):
-        mode = self._values['mode']
-        return mode
+    def bypass_client_cert_failure(self):
+        return self._values['generalSettings']['bypassClientCertFailure']
+
+
+class ModuleParameters(Parameters):
+    @property
+    def name(self):
+        name = self._values['name']
+        if not name.startswith('ssloT_'):
+            name = "ssloT_" + name
+        return name
 
     @property
-    def client_alpn(self):
-        try:
-            client_alpn = self._values['clientSettings']['alpn']
-            if client_alpn is None:
-                return False
-            return client_alpn
-        except:
+    def proxy_type(self):
+        if self._values['client_settings'] is None:
+            return None
+        proxy = self._values['client_settings'].get('proxy_type', None)
+        if proxy is None:
+            raise F5ModuleError("The 'proxy_type' parameter is required when creating/modifying an SSL object.")
+        return proxy
+
+    @property
+    def client_cipher_type(self):
+        if self._values['client_settings'] is None:
+            return None
+        return self._values['client_settings'].get('cipher_type', None)
+
+    @property
+    def client_cipher_string(self):
+        if self._values['client_settings'] is None:
+            return None
+        return self._values['client_settings'].get('cipher_string', None)
+
+    @property
+    def client_cipher_group(self):
+        if self._values['client_settings'] is None:
+            return None
+        return self._values['client_settings'].get('cipher_group', None)
+
+    @property
+    def client_cert(self):
+        if self._values['client_settings'] is None:
+            return None
+        return self._values['client_settings'].get('cert', None)
+
+    @property
+    def client_key(self):
+        if self._values['client_settings'] is None:
+            return None
+        return self._values['client_settings'].get('key', None)
+
+    @property
+    def client_chain(self):
+        if self._values['client_settings'] is None:
+            return None
+        return self._values['client_settings'].get('chain', None)
+
+    @property
+    def client_ca_cert(self):
+        if self._values['client_settings'] is None:
+            return None
+        return self._values['client_settings'].get('ca_cert', None)
+
+    @property
+    def client_ca_key(self):
+        if self._values['client_settings'] is None:
+            return None
+        return self._values['client_settings'].get('ca_key', None)
+
+    @property
+    def client_ca_chain(self):
+        if self._values['client_settings'] is None:
+            return None
+        return self._values['client_settings'].get('ca_chain', None)
+
+    @property
+    def alpn(self):
+        if self._values['client_settings'] is None:
+            return None
+        enable = flatten_boolean(self._values['client_settings'].get('alpn', None))
+        if enable == 'yes':
+            if self.proxy_type == 'reverse':
+                raise F5ModuleError(
+                    "The 'alpn' parameter can only be used with 'forward' proxy type."
+                )
+            return True
+        if enable == 'no':
             return False
 
     @property
     def client_log_publisher(self):
-        try:
-            client_log_publisher = self._values['clientSettings']['logPublisher']
-            if client_log_publisher is None:
-                return "/Common/sys-ssl-publisher"
-            return client_log_publisher
-        except:
-            return "/Common/sys-ssl-publisher"
+        if self._values['client_settings'] is None:
+            return None
+        return self._values['client_settings'].get('log_publisher', None)
+
+    @property
+    def server_cipher_type(self):
+        if self._values['server_settings'] is None:
+            return None
+        return self._values['server_settings'].get('cipher_type', None)
+
+    @property
+    def server_cipher_string(self):
+        if self._values['server_settings'] is None:
+            return None
+        return self._values['server_settings'].get('cipher_string', None)
+
+    @property
+    def server_cipher_group(self):
+        if self._values['server_settings'] is None:
+            return None
+        return self._values['server_settings'].get('cipher_group', None)
+
+    @property
+    def server_ca_bundle(self):
+        if self._values['server_settings'] is None:
+            return None
+        return self._values['server_settings'].get('ca_bundle', None)
+
+    @property
+    def block_expired(self):
+        if self._values['server_settings'] is None:
+            return None
+        enable = flatten_boolean(self._values['server_settings'].get('block_expired', None))
+        if enable == 'yes':
+            return True
+        if enable == 'no':
+            return False
+
+    @property
+    def block_untrusted(self):
+        if self._values['server_settings'] is None:
+            return None
+        enable = flatten_boolean(self._values['server_settings'].get('block_untrusted', None))
+        if enable == 'yes':
+            return True
+        if enable == 'no':
+            return False
+
+    @property
+    def server_ocsp(self):
+        if self._values['server_settings'] is None:
+            return None
+        return self._values['server_settings'].get('ocsp', None)
+
+    @property
+    def server_crl(self):
+        if self._values['server_settings'] is None:
+            return None
+        return self._values['server_settings'].get('crl', None)
 
     @property
     def server_log_publisher(self):
+        if self._values['server_settings'] is None:
+            return None
+        return self._values['server_settings'].get('log_publisher', None)
+
+    @property
+    def bypass_handshake_failure(self):
+        enable = flatten_boolean(self._values['bypass_handshake_failure'])
+        if enable == 'yes':
+            return True
+        if enable == 'no':
+            return False
+
+    @property
+    def bypass_client_cert_failure(self):
+        enable = flatten_boolean(self._values['bypass_client_cert_failure'])
+        if enable == 'yes':
+            return True
+        if enable == 'no':
+            return False
+
+    @property
+    def timeout(self):
+        divisor = 10
+        timeout = self._values['timeout']
+        if timeout < 10 or timeout > 1800:
+            raise F5ModuleError(
+                "Timeout value must be between 10 and 1800 seconds."
+            )
+        if timeout > 99:
+            divisor = 100
+        delay = timeout / divisor
+
+        return int(delay), divisor
+
+
+class Changes(Parameters):
+    def to_return(self):
+        result = {}
         try:
-            server_log_publisher = self._values['clientSettings']['logPublisher']
-            if server_log_publisher is None:
-                return "/Common/sys-ssl-publisher"
-            return server_log_publisher
-        except:
-            return "/Common/sys-ssl-publisher"
+            for returnable in self.returnables:
+                result[returnable] = getattr(self, returnable)
+            result = self._filter_params(result)
+        except Exception:
+            raise
+        return result
+
+
+class UsableChanges(Changes):
+    pass
+
+
+class ReportableChanges(Changes):
+    returnables = [
+        'client_settings',
+        'server_settings',
+        'bypass_handshake_failure',
+        'bypass_client_cert_failure',
+    ]
+
+    @property
+    def client_settings(self):
+        result = dict()
+        if self.proxy_type:
+            result['proxy_type'] = self.proxy_type
+        if self.client_cipher_type:
+            result['cipher_type'] = self.client_cipher_type
+        if self.client_cipher_string:
+            result['cipher_string'] = self.client_cipher_string
+        if self.client_cipher_group:
+            result['cipher_group'] = self.client_cipher_group
+        if self.client_cert:
+            result['cert'] = self.client_cert
+        if self.client_key:
+            result['key'] = self.client_key
+        if self.client_chain:
+            result['chain'] = self.client_chain
+        if self.alpn:
+            result['alpn'] = self.alpn
+        if self.client_ca_cert:
+            result['ca_cert'] = self.client_ca_cert
+        if self.client_ca_key:
+            result['ca_key'] = self.client_ca_key
+        if self.client_ca_chain:
+            result['ca_chain'] = self.client_ca_chain
+        if self.client_log_publisher:
+            result['log_publisher'] = self.client_log_publisher
+        if result:
+            return result
+
+    @property
+    def server_settings(self):
+        result = dict()
+        if self.server_cipher_type:
+            result['cipher_type'] = self.server_cipher_type
+        if self.server_cipher_string:
+            result['cipher_string'] = self.server_cipher_string
+        if self.server_cipher_group:
+            result['cipher_group'] = self.server_cipher_group
+        if self.server_ca_bundle:
+            result['ca_bundle'] = self.server_ca_bundle
+        if self.block_expired:
+            result['block_expired'] = self.block_expired
+        if self.block_untrusted:
+            result['block_untrusted'] = self.block_untrusted
+        if self.server_ocsp:
+            result['ocsp'] = self.server_ocsp
+        if self.server_crl:
+            result['crl'] = self.server_crl
+        if self.server_log_publisher:
+            result['log_publisher'] = self.server_log_publisher
+        if result:
+            return result
+
+
+class Difference(object):
+    def __init__(self, want, have=None):
+        self.want = want
+        self.have = have
+
+    def compare(self, param):
+        try:
+            result = getattr(self, param)
+            return result
+        except AttributeError:
+            return self.__default(param)
+
+    def __default(self, param):
+        attr1 = getattr(self.want, param)
+        try:
+            attr2 = getattr(self.have, param)
+            if attr1 != attr2:
+                return attr1
+        except AttributeError:
+            return attr1
+
+    @property
+    def proxy_type(self):
+        if self.want.proxy_type != self.have.proxy_type:
+            raise F5ModuleError("The 'proxy_type' parameter cannot be changed after SSL object has been created.")
 
 
 class ModuleManager(object):
-    global print_output
-    global json_template
-    global obj_attempts
-    global min_version
-    global max_version
-
     def __init__(self, *args, **kwargs):
-        self.module = kwargs.pop('module', None)
+        self.module = kwargs.get('module', None)
         self.connection = kwargs.get('connection', None)
         self.client = F5Client(module=self.module, client=self.connection)
         self.want = ModuleParameters(params=self.module.params)
+        self.changes = UsableChanges()
+        self.have = ApiParameters()
 
-    def getSsloVersion(self):
-        # use this method to get the SSLO version (first two digits (x.y))
-        uri = "/mgmt/shared/iapp/installed-packages"
+        # define a set of common instance variables used during module execution
+        self.block_id = None
+        self.operation = None
+        self.version = None
+        self.json_dump = None
 
-        response = self.client.get(uri)
-        if response['code'] in [200, 201, 202]:
-            for x in response['contents']["items"]:
-                if x["appName"] == "f5-iappslx-ssl-orchestrator":
-                    tmpversion = x["release"].split(".")
-                    version = tmpversion[0] + "." + tmpversion[1]
-                    return float(version)
-        raise F5ModuleError("SSL Orchestrator package does not appear to be installed. Aborting.")
+    def _set_changed_options(self):
+        changed = {}
+        for key in Parameters.returnables:
+            if getattr(self.want, key) is not None:
+                changed[key] = getattr(self.want, key)
+        if changed:
+            self.changes = UsableChanges(params=changed)
 
-    def deleteOperation(self, id):
-        # use this method to delete an operation that failed
-        uri = "/mgmt/shared/iapp/blocks/{0}".format(id)
+    def _update_changed_options(self):
+        diff = Difference(self.want, self.have)
+        updatables = Parameters.updatables
+        changed = dict()
+        for k in updatables:
+            change = diff.compare(k)
+            if change is None:
+                continue
+            else:
+                if isinstance(change, dict):
+                    changed.update(change)
+                else:
+                    changed[k] = change
+        if changed:
+            self.changes = UsableChanges(params=changed)
+            return True
+        return False
+
+    def _announce_deprecations(self, result):
+        warnings = result.pop('__warnings', [])
+        for warning in warnings:
+            self.client.module.deprecate(
+                msg=warning['msg'],
+                version=warning['version']
+            )
+
+    def exec_module(self):
+        changed = False
+        result = dict()
+        state = self.want.state
+
+        self.check_sslo_version()
+
+        if state == 'present':
+            changed = self.present()
+        elif state == 'absent':
+            changed = self.absent()
+
+        reportable = ReportableChanges(params=self.changes.to_return())
+        changes = reportable.to_return()
+        result.update(**changes)
+        result.update(dict(changed=changed))
+        if self.json_dump:
+            result.update(dict(json=self.json_dump))
+        self._announce_deprecations(result)
+        return result
+
+    def check_sslo_version(self):
+        self.version = sslo_version(self.client)
+        if LooseVersion(self.version) > LooseVersion(max_sslo_version) or \
+                LooseVersion(self.version) < LooseVersion(min_sslo_version):
+            raise F5ModuleError(
+                f"Unsupported SSL Orchestrator version, "
+                f"requires a version between {min_sslo_version} and {max_sslo_version}"
+            )
+        return True
+
+    def present(self):
+        if self.exists():
+            return self.update()
+        else:
+            return self.create()
+
+    def absent(self):
+        if self.exists():
+            return self.remove()
+        return False
+
+    def should_update(self):
+        result = self._update_changed_options()
+        if result:
+            return True
+        return False
+
+    def update(self):
+        self.have = self.read_current_from_device()
+        if not self.should_update():
+            return False
+        if self.module.check_mode:
+            return True
+        self.operation = 'MODIFY'
+        task_id, output = self.update_on_device()
+        if task_id:
+            self.wait_for_task(task_id)
+        if output:
+            self.json_dump = output
+            return False
+        return True
+
+    def remove(self):
+        if self.module.check_mode:
+            return True
+        self.operation = 'DELETE'
+        task_id, output = self.remove_from_device()
+        if task_id:
+            self.wait_for_task(task_id)
+        if output:
+            self.json_dump = output
+            return False
+        return True
+
+    def create(self):
+        self._set_changed_options()
+        if self.module.check_mode:
+            return True
+        self.operation = 'CREATE'
+        task_id, output = self.create_on_device()
+        if task_id:
+            self.wait_for_task(task_id)
+        if output:
+            self.json_dump = output
+            return False
+        return True
+
+    def add_json_metadata(self, payload=None):
+        if not payload:
+            payload = dict()
+        payload['name'] = f"sslo_obj_SSL_SETTINGS_{self.operation}_{self.want.name}"
+        payload['deployment_name'] = self.want.name
+        payload['operation'] = self.operation
+        payload['sslo_version'] = float(self.version)
+        if self.operation == 'MODIFY' or self.operation == 'DELETE':
+            payload['dep_ref'] = f"https://localhost/mgmt/shared/iapp/blocks/{self.block_id}"
+            payload['block_id'] = self.block_id
+        return payload
+
+    def check_version_specific_parameters(self):
+        if LooseVersion(self.version) < LooseVersion('9.0'):
+            if self.changes.alpn is not None:
+                raise F5ModuleError(
+                    "The 'alpn' parameter is only available on SSLO version 9.0 and above."
+                )
+            if self.changes.client_log_publisher:
+                raise F5ModuleError(
+                    "The 'client_log_publisher' parameter is only available on SSLO version 9.0 and above."
+                )
+            if self.changes.server_log_publisher:
+                raise F5ModuleError(
+                    "The 'server_log_publisher' parameter is only available on SSLO version 9.0 and above."
+                )
+
+    def add_create_defaults(self, payload):
+        if self.want.client_cert is None:
+            payload['client_cert'] = '/Common/default.crt'
+        if self.want.client_key is None:
+            payload['client_key'] = '/Common/default.key'
+        if self.want.client_cipher_type is None:
+            payload['client_cipher_type'] = 'string'
+        if self.want.client_cipher_string is None:
+            payload['client_cipher_string'] = 'DEFAULT'
+        if self.want.client_cipher_group is None:
+            payload['client_cipher_group'] = '/Common/f5-default'
+        if self.want.server_cipher_type is None:
+            payload['server_cipher_type'] = 'string'
+        if self.want.server_cipher_string is None:
+            payload['server_cipher_string'] = 'DEFAULT'
+        if self.want.server_cipher_group is None:
+            payload['server_cipher_group'] = '/Common/f5-default'
+        if self.want.server_ca_bundle is None:
+            payload['server_ca_bundle'] = '/Common/ca-bundle.crt'
+        if self.want.proxy_type == 'reverse':
+            payload['block_untrusted'] = False
+            payload['block_expired'] = False
+        if self.want.proxy_type == 'forward':
+            payload['block_untrusted'] = True
+            payload['block_expired'] = True
+        if self.want.bypass_handshake_failure is None:
+            payload['bypass_handshake_failure'] = False
+        if self.want.bypass_client_cert_failure is None:
+            payload['bypass_client_cert_failure'] = False
+        if LooseVersion(self.version) >= LooseVersion('9.0'):
+            if self.want.client_log_publisher is None:
+                payload['client_log_publisher'] = '/Common/sys-ssl-publisher'
+            if self.want.server_log_publisher is None:
+                payload['server_log_publisher'] = '/Common/sys-ssl-publisher'
+        payload['client_enable_tls13'] = [json_enable_tls13]
+        payload['server_enable_tls13'] = [json_enable_tls13]
+        return payload
+
+    def add_missing_options(self, payload):
+        if self.changes.client_cert is None:
+            payload['client_cert'] = self.have.client_cert
+        if self.changes.client_key is None:
+            payload['client_key'] = self.have.client_key
+        if self.changes.client_chain is None and self.have.client_chain:
+            payload['client_chain'] = self.have.client_chain
+        if self.changes.client_ca_cert is None and self.want.proxy_type == 'forward' and self.have.client_ca_cert:
+            payload['client_ca_cert'] = self.have.client_ca_cert
+        if self.changes.client_ca_key is None and self.want.proxy_type == 'forward' and self.have.client_ca_key:
+            payload['client_ca_key'] = self.have.client_ca_key
+        if self.changes.client_ca_chain is None and self.want.proxy_type == 'forward' and self.have.client_ca_chain:
+            payload['client_ca_chain'] = self.have.client_ca_chain
+        if self.changes.client_cipher_type is None:
+            payload['client_cipher_type'] = self.have.client_cipher_type
+        if self.changes.client_cipher_string is None:
+            payload['client_cipher_string'] = self.have.client_cipher_string
+        if self.changes.client_cipher_group is None:
+            payload['client_cipher_group'] = self.have.client_cipher_group
+        if self.changes.client_log_publisher is None and self.have.client_log_publisher:
+            payload['client_log_publisher'] = self.have.client_log_publisher
+        if self.have.client_enable_tls13:
+            payload['client_enable_tls13'] = self.have.client_enable_tls13
+        if self.changes.server_cipher_type is None:
+            payload['server_cipher_type'] = self.have.server_cipher_type
+        if self.changes.server_cipher_string is None:
+            payload['server_cipher_string'] = self.have.server_cipher_string
+        if self.changes.server_cipher_group is None:
+            payload['server_cipher_group'] = self.have.server_cipher_group
+        if self.changes.server_ca_bundle is None:
+            payload['server_ca_bundle'] = self.have.server_ca_bundle
+        if self.changes.block_expired is None:
+            payload['block_expired'] = self.have.block_expired
+        if self.changes.block_untrusted is None:
+            payload['block_untrusted'] = self.have.block_untrusted
+        if self.changes.server_ocsp is None:
+            payload['server_ocsp'] = self.have.server_ocsp
+        if self.changes.server_crl is None:
+            payload['server_crl'] = self.have.server_crl
+        if self.changes.server_log_publisher is None and self.have.server_log_publisher:
+            payload['server_log_publisher'] = self.have.server_log_publisher
+        if self.have.server_enable_tls13:
+            payload['server_enable_tls13'] = self.have.server_enable_tls13
+        if self.changes.bypass_handshake_failure is None:
+            payload['bypass_handshake_failure'] = self.have.bypass_handshake_failure
+        if self.changes.bypass_client_cert_failure is None:
+            payload['bypass_client_cert_failure'] = self.have.bypass_client_cert_failure
+        if self.changes.alpn is None and self.have.alpn:
+            payload['alpn'] = self.have.alpn
+        payload['proxy_type'] = self.want.proxy_type
+        return payload
+
+    def exists(self):
+        uri = "/mgmt/shared/iapp/blocks/"
+        query = f"?$filter=name+eq+'{self.want.name}'"
+        response = self.client.get(uri + query)
+
+        if response['code'] == 404:
+            return False
+
+        if response['code'] not in [200, 201, 202]:
+            raise F5ModuleError(response['contents'])
+
+        if response['contents'].get('items', None):
+            if response['contents']['items'][0]['name'] == self.want.name:
+                self.block_id = response['contents']['items'][0]['id']
+                return True
+        return False
+
+    def create_on_device(self):
+        payload = self.changes.to_return()
+        self.check_version_specific_parameters()
+        data = self.add_create_defaults(self.add_json_metadata(payload))
+
+        output = process_json(data, create_modify)
+
+        if self.want.dump_json:
+            return None, output
+
+        uri = "/mgmt/shared/iapp/blocks/"
+        response = self.client.post(uri, data=output)
+
+        if response['code'] not in [200, 201, 202]:
+            raise F5ModuleError(response['contents'])
+
+        task_id = str(response['contents']['id'])
+        return task_id, None
+
+    def update_on_device(self):
+        payload = self.changes.to_return()
+        self.check_version_specific_parameters()
+        data = self.add_missing_options(self.add_json_metadata(payload))
+
+        output = process_json(data, create_modify)
+
+        if self.want.dump_json:
+            return None, output
+
+        uri = "/mgmt/shared/iapp/blocks/"
+        response = self.client.post(uri, data=output)
+
+        if response['code'] not in [200, 201, 202]:
+            raise F5ModuleError(response['contents'])
+
+        task_id = str(response['contents']['id'])
+        return task_id, None
+
+    def remove_from_device(self):
+        data = self.add_json_metadata()
+
+        output = process_json(data, delete)
+
+        if self.want.dump_json:
+            return None, output
+
+        uri = "/mgmt/shared/iapp/blocks/"
+        response = self.client.post(uri, data=output)
+
+        if response['code'] not in [200, 201, 202]:
+            raise F5ModuleError(response['contents'])
+
+        task_id = str(response['contents']['id'])
+        return task_id, None
+
+    def read_current_from_device(self):
+        uri = "/mgmt/shared/iapp/blocks/"
+        query = f"?$filter=name+eq+'{self.want.name}'"
+        response = self.client.get(uri + query)
+
+        if response['code'] not in [200, 201, 202]:
+            raise F5ModuleError(response['contents'])
+
+        if response['contents'].get('items', None) and response['contents']['items'][0]['name'] == self.want.name:
+            returned_json = response['contents']['items'][0]['inputProperties'][0]['value']
+            self.block_id = response['contents']['items'][0]['id']
+            return ApiParameters(params=returned_json)
+        raise F5ModuleError(response['contents'])
+
+    def delete_failed_operation_on_device(self, task):
+        # use this method to delete the operation that failed
+        # if there are any http errors we ignore them
+        uri = "/mgmt/shared/iapp/blocks/{0}".format(task)
         response = self.client.delete(uri)
 
         if response['code'] in [200, 201, 202]:
@@ -844,363 +1247,32 @@ class ModuleManager(object):
         else:
             return False
 
-
-    def update_json(self, operation):
-        
-        ## use this to method to create and return a modified copy of the JSON template
-        self.config = json_template
-
-        ## get base name
-        self.local_name = re.sub('ssloT_', '', self.want.name)
-
-        ## perform some input validation
-        ## if TLS1.3 is enabled, the isCipherString value must be "false"
-        if self.want.client_enable_tls13 == True and self.want.client_cipher_type == "string":
-            raise F5ModuleError("Enabling client-side TLS 1.3 also requires a cipher group")
-        if self.want.server_enable_tls13 == True and self.want.server_cipher_type == "string":
-            raise F5ModuleError("Enabling server-side TLS 1.3 also requires a cipher group")
-
-
-        ## =================================
-        ## 1.0.1 general update: modify version and previousVersion values to match target BIG-IP version
-        ## =================================
-        self.config["inputProperties"][0]["value"]["version"] = self.ssloVersion
-        self.config["inputProperties"][1]["value"]["version"] = self.ssloVersion
-        self.config["inputProperties"][1]["value"]["previousVersion"] = self.ssloVersion
-
-
-        ## general json settings for all operations
-        self.config["inputProperties"][0]["value"]["deploymentName"] = self.want.name
-        self.config["inputProperties"][0]["value"]["operationType"] = operation
-        self.config["inputProperties"][1]["value"]["name"] = self.want.name
-        self.config["inputProperties"][1]["value"]["generalSettings"]["bypassHandshakeAlert"] = self.want.bypass_handshake_failure
-        self.config["inputProperties"][1]["value"]["generalSettings"]["bypassClientCertFailure"] = self.want.bypass_clientcert_failure
-        if self.want.client_enable_tls13 == False:
-            self.config["inputProperties"][1]["value"]["clientSettings"]["enabledSSLProcessingOptions"].append(json_enable_tls13)
-        if self.want.server_enable_tls13 == False:
-            self.config["inputProperties"][1]["value"]["serverSettings"]["enabledSSLProcessingOptions"].append(json_enable_tls13)
-
-        ## generic client settings
-        self.config["inputProperties"][1]["value"]["clientSettings"]["certKeyChain"][0]["cert"] = self.want.client_cert
-        self.config["inputProperties"][1]["value"]["clientSettings"]["certKeyChain"][0]["key"] = self.want.client_key
-        if self.want.client_chain != None:
-            self.config["inputProperties"][1]["value"]["clientSettings"]["certKeyChain"][0]["chain"] = self.want.client_chain
-        
-        if self.want.client_cipher_type == "string":
-            self.config["inputProperties"][1]["value"]["clientSettings"]["ciphers"]["isCipherString"] = True
-            self.config["inputProperties"][1]["value"]["clientSettings"]["ciphers"]["cipherString"] = self.want.client_cipher
-        elif self.want.client_cipher_type == "group":
-            self.config["inputProperties"][1]["value"]["clientSettings"]["ciphers"]["isCipherString"] = False
-            self.config["inputProperties"][1]["value"]["clientSettings"]["ciphers"]["cipherGroup"] = self.want.client_cipher
-
-        ## generic server settings
-        self.config["inputProperties"][1]["value"]["serverSettings"]["caBundle"] = self.want.server_ca_bundle
-
-        if self.want.server_cipher_type == "string":
-            self.config["inputProperties"][1]["value"]["serverSettings"]["ciphers"]["isCipherString"] = True
-            self.config["inputProperties"][1]["value"]["serverSettings"]["ciphers"]["cipherString"] = self.want.server_cipher
-        elif self.want.server_cipher_type == "group":
-            self.config["inputProperties"][1]["value"]["serverSettings"]["ciphers"]["isCipherString"] = False
-            self.config["inputProperties"][1]["value"]["serverSettings"]["ciphers"]["cipherGroup"] = self.want.server_cipher
-        
-        if self.want.server_ocsp != None:
-            self.config["inputProperties"][1]["value"]["serverSettings"]["ocsp"] = self.want.server_ocsp
-
-        if self.want.server_crl != None:
-            self.config["inputProperties"][1]["value"]["serverSettings"]["crl"] = self.want.server_crl
-
-        ## Test if this is a forward or reverse proxy config, based on presence of client_ca_cert value
-        if self.want.client_ca_cert != None:
-            ## assume this is a forward proxy
-            self.config["inputProperties"][1]["value"]["generalSettings"]["isForwardProxy"] = True
-            self.proxyType = "forward"
-
-            self.ca_cert_config = json_ca_cert_template
-            self.ca_cert_config["cert"] = self.want.client_ca_cert
-            self.ca_cert_config["key"] = self.want.client_ca_key
-            if self.want.client_ca_chain != None:
-                self.ca_cert_config["chain"] = self.want.client_ca_chain
-            self.config["inputProperties"][1]["value"]["clientSettings"]["caCertKeyChain"].append(self.ca_cert_config)
-
-            ## client settings
-            self.config["inputProperties"][1]["value"]["clientSettings"]["forwardByPass"] = True
-
-            ## server settings - set defaults if none specified
-            if self.want.server_block_untrusted == None:
-                ## for forward proxy default to False unless specified
-                self.config["inputProperties"][1]["value"]["serverSettings"]["untrustedCertificates"] = True
-            else:
-                self.config["inputProperties"][1]["value"]["serverSettings"]["untrustedCertificates"] = self.want.server_block_untrusted
-
-            if self.want.server_block_expired == None:
-                ## for forward proxy default to False unless specified
-                self.config["inputProperties"][1]["value"]["serverSettings"]["expiredCertificates"] = True
-            else:
-                self.config["inputProperties"][1]["value"]["serverSettings"]["expiredCertificates"] = self.want.server_block_expired
-
-        else:
-            ## assume this is a reverse proxy
-            self.config["inputProperties"][1]["value"]["generalSettings"]["isForwardProxy"] = False
-            self.proxyType = "reverse"
-            
-            ## client settings
-            self.config["inputProperties"][1]["value"]["clientSettings"]["forwardByPass"] = False
-
-            ## server settings - set defaults if none specified
-            if self.want.server_block_untrusted == None:
-                ## for forward proxy default to False unless specified
-                self.config["inputProperties"][1]["value"]["serverSettings"]["untrustedCertificates"] = False
-            else:
-                self.config["inputProperties"][1]["value"]["serverSettings"]["untrustedCertificates"] = self.want.server_block_untrusted
-
-            if self.want.server_block_expired == None:
-                ## for forward proxy default to False unless specified
-                self.config["inputProperties"][1]["value"]["serverSettings"]["expiredCertificates"] = False
-            else:
-                self.config["inputProperties"][1]["value"]["serverSettings"]["expiredCertificates"] = self.want.server_block_expired
-
-
-        ## ================================================
-        ## updates: 9.0
-        ## alpn - only available in 9.0+ and forward proxy
-        if self.ssloVersion >= 9.0 and self.proxyType == "forward":
-            self.config["inputProperties"][1]["value"]["clientSettings"]["alpn"] = self.want.client_alpn
-
-        ## logPublisher - only available in 9.0+
-        if self.ssloVersion >= 9.0:
-            self.config["inputProperties"][1]["value"]["clientSettings"]["logPublisher"] = self.want.client_log_publisher
-            self.config["inputProperties"][1]["value"]["serverSettings"]["logPublisher"] = self.want.server_log_publisher
-        ## ================================================
-
-
-        ## create operation
-        if operation == "CREATE":            
-            #### TO DO: update JSON code for CREATE operation
-            self.config["name"] = "sslo_obj_SSL_SETTINGS_CREATE_" + self.want.name
-
-
-        ## modify/delete operations
-        elif operation in ["DELETE", "MODIFY"]:
-            self.config["name"] = "sslo_obj_SSL_SETTINGS_MODIFY_" + self.want.name
-
-            ## get object ID and add to deploymentReference and existingBlockId values
-            uri = "/mgmt/shared/iapp/blocks/"
-            query = "?$filter=name+eq+'{0}'&$select=id".format(self.want.name)
-            response = self.client.get(uri + query)
-
-            if response['code'] not in [200, 201, 202]:
-                raise F5ModuleError(response['contents'])
-
-            try:
-                id = response['contents']["items"][0]['id']
-                self.config["inputProperties"][0]["value"]["deploymentReference"] = "https://localhost/mgmt/shared/iapp/blocks/" + id
-                self.config["inputProperties"][1]["value"]["existingBlockId"] = id
-            except Exception:
-                raise F5ModuleError("Failure to create/modify - unable to fetch object ID")
-
-            
-            if operation in ["MODIFY"]:
-                pass
-                #### TO DO: update JSON code for MODIFY operation
-
-
-
-        return self.config
-
-    def exec_module(self):
-        self.ssloVersion = self.getSsloVersion()
-        changed = False
-        result = dict()
-        state = self.want.state
-
-        ## test for correct TMOS version
-        if self.ssloVersion < min_version or self.ssloVersion > max_version:
-            raise F5ModuleError("Unsupported SSL Orchestrator version, requires a version between min(" + str(min_version) + ") and max(" + str(max_version) + ")")
-        
-
-        ## enable/disable testdev to output to JSON only for testing (1) or push config to server (0)
-        testdev = 0
-        if testdev:
-            self.exists()
-            jsonstr = self.update_json("CREATE")
-            print_output.append("jsonstr = " + str(jsonstr))
-        
-        else:
-            if state == 'present':
-                changed = self.update()
-            elif state == 'absent':
-                changed = self.absent()
-
-
-        result.update(dict(changed=changed))
-        print_output.append('changed=' + str(changed))
-        return result
-
-
-    def update(self):
-        if self.module.check_mode:
-            return True
-
-        ## use this method to create the objects (if not exists) or modify (if exists)
-        if self.exists():
-            ## MODIFY: object exists - perform modify - get modified json first
-            jsonstr = self.update_json("MODIFY")
-
-            if self.want.mode == "output":
-                print_output.append(jsonstr)
-
-            else:
-                ## post the object modify json
-                uri = "/mgmt/shared/iapp/blocks/"
-
-                response = self.client.post(uri, data=jsonstr)
-                if response['code'] not in [200, 201, 202]:
-                    raise F5ModuleError(response['contents'])
-
-                ## get operation id from last request and loop through check
-                self.operationId = str(response['contents']["id"])
-                attempts = 1
-                error = ""
-                while attempts <= obj_attempts:
-                    uri = "/mgmt/shared/iapp/blocks/"
-
-                    query = "?$filter=id+eq+'{0}'".format(self.operationId)
-                    response = self.client.get(uri + query)
-                    if response['code'] not in [200, 201, 202]:
-                        raise F5ModuleError(response['contents'])
-                    try:
-                        if response['contents']["items"][0]["state"] == "BOUND":
-                            return True
-                        elif response['contents']["items"][0]["state"] == "ERROR":
-                            error = str(response['contents']["items"][0]["error"])
-                            break
-                    except Exception:
-                        time.sleep(1)
-                        attempts += 1
-                
-                if error != "":
-                    ## delete attempted configuration and raise error
-                    self.deleteOperation(self.operationId)
-                    raise F5ModuleError("Creation error: " + error)
-                else:
-                    raise F5ModuleError("Object " + self.want.name + " create/modify operation timeout")
-
-        else:
-            ## CREATE: object doesn't exist - perform create - get modified json first
-            jsonstr = self.update_json("CREATE")
-            
-            if self.want.mode == "output":
-                print_output.append(jsonstr)
-
-            else:
-                ## post the object create json
-                uri = "/mgmt/shared/iapp/blocks/"
-                response = self.client.post(uri, data=jsonstr)
-                if response['code'] not in [200, 201, 202]:
-                    raise F5ModuleError(response['contents'])
-
-                ## get operation id from last request and loop through check
-                self.operationId = str(response['contents']["id"])
-                attempts = 1
-                error = ""
-                while attempts <= obj_attempts:
-                    uri = "/mgmt/shared/iapp/blocks/"
-                    query = "?$filter=id+eq+'{0}'".format(self.operationId)
-                    response = self.client.get(uri + query)
-                    if response['code'] not in [200, 201, 202]:
-                        raise F5ModuleError(response['contents'])
-
-                    try:
-                        if response['contents']["items"][0]["state"] == "BOUND":
-                            return True
-                        elif response['contents']["items"][0]["state"] == "ERROR":
-                            error = str(response['contents']["items"][0]["error"])
-                            break
-                    except Exception:
-                        time.sleep(1)
-                        attempts += 1
-                
-                if error != "":
-                    ## delete attempted configuration and raise error
-                    self.deleteOperation(self.operationId)
-                    raise F5ModuleError("Creation error: " + self.operationId + ":" + error)
-                else:
-                    raise F5ModuleError("Object " + self.want.name + " create/modify operation timeout")
-
-    def absent(self):
-        ## use this method to delete the objects (if exists)
-        if self.exists():
-            if self.module.check_mode:
+    def wait_for_task(self, task_id):
+        error = None
+        delay, period = self.want.timeout
+        for x in range(0, period):
+            task = self._check_task_on_device(task_id)
+            if task['state'] == 'BOUND':
                 return True
+            if task['state'] == 'ERROR':
+                error = str(task['error'])
+                break
+            time.sleep(delay)
+        if error:
+            self.delete_failed_operation_on_device(task_id)
+            raise F5ModuleError(f"{self.operation} operation error: {task_id} : {error}")
+        raise F5ModuleError(
+            "Module timeout reached, state change is unknown, "
+            "please increase the timeout parameter for long lived actions."
+        )
 
-            ## DELETE: object doesn't exist - perform create - get modified json first
-            jsonstr = self.update_json("DELETE")
-
-            if self.want.mode == "output":
-                print_output.append(jsonstr)
-
-            else:
-                ## post the object create json
-                uri = "/mgmt/shared/iapp/blocks/"
-                response = self.client.post(uri, data=jsonstr)
-                if response['code'] not in [200, 201, 202]:
-                    raise F5ModuleError(response['contents'])
-
-                ## get operation id from last request and loop through check
-                self.operationId = str(response['contents']["id"])
-                attempts = 1
-                error = ""
-                while attempts <= obj_attempts:
-                    uri = "/mgmt/shared/iapp/blocks/"
-                    query = "?$filter=id+eq+'{0}'".format(self.operationId)
-                    response = self.client.get(uri + query)
-                    if response['code'] not in [200, 201, 202]:
-                        raise F5ModuleError(response['contents'])
-                    try:
-                        if response['contents']["items"][0]["state"] == "BOUND":
-                            return True
-                        elif response['contents']["items"][0]["state"] == "ERROR":
-                            error = str(response['contents']["items"][0]["error"])
-                            break
-                    except Exception:
-                        time.sleep(1)
-                        attempts += 1
-
-                if error != "":
-                    ## delete attempted configuration and raise error
-                    self.deleteOperation(self.operationId)
-                    raise F5ModuleError("Creation error: " + self.operationId + ":" + error)
-                else:
-                    raise F5ModuleError("Object " + self.want.name + " create/modify operation timeout")
-
-        else:
-            ## object doesn't exit - just exit (changed = False)
-            return False
-
-    def exists(self):
-        # use this method to see if the objects already exists - queries for the respective application service object
+    def _check_task_on_device(self, task_id):
         uri = "/mgmt/shared/iapp/blocks/"
-        query = "?$filter=name+eq+'{0}'".format(self.want.name)
+        query = f"?$filter=id+eq+'{task_id}'"
         response = self.client.get(uri + query)
-
-        if response['code'] in [200, 201, 202]:
-            foundit = 0
-            for i in range(0, len(response['contents']["items"])):
-                try:
-                    if str(response['contents']["items"][i]["name"]) == self.want.name:
-                        foundit = 1
-                        self.existing_config = response['contents']["items"][i]
-                        break
-                except Exception:
-                    pass
-
-            if foundit == 1:
-                return True
-            else:
-                return False
-
-        else:
-            return False
+        if response['code'] not in [200, 201, 202]:
+            raise F5ModuleError(response['contents'])
+        return response['contents']['items'][0]
 
 
 class ArgumentSpec(object):
@@ -1208,80 +1280,91 @@ class ArgumentSpec(object):
         self.supports_check_mode = True
         argument_spec = dict(
             name=dict(required=True),
-            clientSettings=dict(
-                required=True,
+            client_settings=dict(
                 type='dict',
                 options=dict(
-                    cipherType=dict(
-                        choices=['string','group'],
-                        default='string'
+                    proxy_type=dict(
+                        choices=['reverse', 'forward']
                     ),
-                    cipher=dict(default=None),
-                    enableTLS1_3=dict(type='bool', default=False),
-                    cert=dict(default='/Common/default.crt'),
-                    key=dict(default='/Common/default.key'),
-                    chain=dict(default=None),
-                    caCert=dict(default=None),
-                    caKey=dict(default=None),
-                    caChain=dict(),
-                    alpn=dict(type='bool', default=False),
-                    logPublisher=dict(default='/Common/sys-ssl-publisher')
-                )
+                    cipher_type=dict(
+                        choices=['string', 'group'],
+                    ),
+                    cipher_string=dict(),
+                    cipher_group=dict(),
+                    cert=dict(),
+                    key=dict(),
+                    chain=dict(),
+                    ca_cert=dict(),
+                    ca_key=dict(),
+                    ca_chain=dict(),
+                    alpn=dict(type='bool'),
+                    log_publisher=dict(),
+                ),
+                mutually_exclusive=[
+                    ['cipher_string', 'cipher_group'],
+                ],
+                required_if=[
+                    ['cipher_type', 'string', ['cipher_string']],
+                    ['cipher_type', 'group', ['cipher_group']],
+                    ['proxy_type', 'forward', ['ca_cert']],
+                ],
+                required_together=[
+                    ['ca_cert', 'ca_key'],
+                    ['cert', 'key']
+                ]
             ),
-            serverSettings=dict(
+            server_settings=dict(
                 type='dict',
                 options=dict(
-                    cipherType=dict(
-                        choices=['string','group'],
-                        default='string'
+                    cipher_type=dict(
+                        choices=['string', 'group'],
                     ),
-                    cipher=dict(default=None),
-                    enableTLS1_3=dict(type='bool', default=False),
-                    caBundle=dict(default='/Common/ca-bundle.crt'),
-                    blockExpired=dict(type='bool'),
-                    blockUntrusted=dict(type='bool'),
-                    ocsp=dict(default=None),
-                    crl=dict(default=None),
-                    logPublisher=dict(default='/Common/sys-ssl-publisher')
-                )
+                    cipher_string=dict(),
+                    cipher_group=dict(),
+                    ca_bundle=dict(),
+                    block_expired=dict(type='bool'),
+                    block_untrusted=dict(type='bool'),
+                    ocsp=dict(),
+                    crl=dict(),
+                    log_publisher=dict(),
+                ),
+                mutually_exclusive=['cipher_string', 'cipher_group'],
+                required_if=[
+                    ['cipher_type', 'string', ['cipher_string']],
+                    ['cipher_type', 'group', ['cipher_group']]
+                ]
             ),
-            bypassHandshakeFailure=dict(type='bool', default=False),
-            bypassClientCertFailure=dict(type='bool', default=False),
+            bypass_handshake_failure=dict(type='bool'),
+            bypass_client_cert_failure=dict(type='bool'),
+            timeout=dict(
+                type='int',
+                default=300
+            ),
             state=dict(
                 default='present',
-                choices=['absent','present']
+                choices=['absent', 'present']
             ),
-            mode=dict(
-                choices=["update","output"],
-                default="update"
+            dump_json=dict(
+                type='bool',
+                default='no'
             )
         )
         self.argument_spec = {}
         self.argument_spec.update(argument_spec)
 
+
 def main():
-    ## start here
-
-    ## define global print_output
-    global print_output
-    print_output = []
-
-    ## define argumentspec
     spec = ArgumentSpec()
+
     module = AnsibleModule(
         argument_spec=spec.argument_spec,
         supports_check_mode=spec.supports_check_mode,
     )
 
-    ## send to exec_module, result contains output of tasks
     try:
         mm = ModuleManager(module=module, connection=Connection(module._socket_path))
         results = mm.exec_module()
-        result = dict(
-          print_output = print_output,
-          **results
-        )
-        module.exit_json(**result)
+        module.exit_json(**results)
     except F5ModuleError as ex:
         module.fail_json(msg=str(ex))
 
